@@ -70,6 +70,22 @@ export interface ConsumerCareDetailsDeclaration {
   extracted_email: string | null;
 }
 
+export interface FontReadabilityAnalysis {
+  estimated_numeral_height_mm: number | null;
+  minimum_required_height_mm: number;
+  is_font_height_compliant: boolean;
+  contrast_evaluation: 'HIGH' | 'ADEQUATE' | 'POOR';
+  readability_score: number; // 0 - 100
+  conspicuous_placement_compliant: boolean;
+  observations: string;
+}
+
+export interface MisleadingPackagingCheck {
+  is_misleading: boolean;
+  has_deceptive_stickers: boolean;
+  findings: string[];
+}
+
 export interface LegalMetrologyDeclarations {
   manufacturer_or_packer: ManufacturerOrPackerDeclaration;
   country_of_origin: CountryOfOriginDeclaration;
@@ -86,6 +102,8 @@ export interface LegalMetrologyAuditReport {
   audit_metadata: AuditMetadata;
   declarations: LegalMetrologyDeclarations;
   detected_languages: string[];
+  font_readability?: FontReadabilityAnalysis;
+  misleading_packaging?: MisleadingPackagingCheck;
 }
 
 export interface StatutoryRuleCheck {

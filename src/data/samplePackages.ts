@@ -72,6 +72,20 @@ export const SAMPLE_PACKAGING_CASES: SamplePackagingItem[] = [
           extracted_email: "customercare@tataconsumer.com"
         }
       },
+      font_readability: {
+        estimated_numeral_height_mm: 6.2,
+        minimum_required_height_mm: 6.0,
+        is_font_height_compliant: true,
+        contrast_evaluation: 'HIGH',
+        readability_score: 98,
+        conspicuous_placement_compliant: true,
+        observations: 'Clear dark print over off-white background on the Principal Display Panel. Meets the First Schedule 6 mm requirement for packages exceeding 1 kg.'
+      },
+      misleading_packaging: {
+        is_misleading: false,
+        has_deceptive_stickers: false,
+        findings: []
+      },
       detected_languages: ["English", "Hindi"]
     }
   },
@@ -146,6 +160,23 @@ export const SAMPLE_PACKAGING_CASES: SamplePackagingItem[] = [
           extracted_email: "contact@ayurbotanicals.in"
         }
       },
+      font_readability: {
+        estimated_numeral_height_mm: 2.1,
+        minimum_required_height_mm: 4.0,
+        is_font_height_compliant: false,
+        contrast_evaluation: 'ADEQUATE',
+        readability_score: 64,
+        conspicuous_placement_compliant: true,
+        observations: 'Net quantity numeral height is ~2.1 mm, which violates the 4.0 mm statutory threshold for commodities of 200g-500g under the First Schedule of Rule 9.'
+      },
+      misleading_packaging: {
+        is_misleading: true,
+        has_deceptive_stickers: false,
+        findings: [
+          'Prohibited abbreviation "gms" utilized instead of statutory SI metric symbol "g"',
+          'Absence of mandatory "inclusive of all taxes" declaration under Rule 6(1)(e)'
+        ]
+      },
       detected_languages: ["English"]
     }
   },
@@ -219,6 +250,23 @@ export const SAMPLE_PACKAGING_CASES: SamplePackagingItem[] = [
           extracted_phone: "+91-9820011223",
           extracted_email: "support@greencrunch.com"
         }
+      },
+      font_readability: {
+        estimated_numeral_height_mm: 4.2,
+        minimum_required_height_mm: 4.0,
+        is_font_height_compliant: true,
+        contrast_evaluation: 'HIGH',
+        readability_score: 85,
+        conspicuous_placement_compliant: true,
+        observations: 'Satisfies numeral height for 250g package (4mm required). High contrast black on yellow pouch.'
+      },
+      misleading_packaging: {
+        is_misleading: true,
+        has_deceptive_stickers: false,
+        findings: [
+          'Missing statutory Country of Origin declaration under Rule 6(1)(aa)',
+          'Incomplete Consumer Care quad: Physical postal address omitted'
+        ]
       },
       detected_languages: ["English"]
     }

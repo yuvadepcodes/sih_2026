@@ -26,7 +26,7 @@ export const StatutoryDeclarationsList: React.FC<StatutoryDeclarationsListProps>
 
   return (
     <div className="space-y-3">
-      {/* 1. Manufacturer / Packer */}
+      {/* 1. Manufacturer / Packer / Importer Details (Rule 6(1)(a)) */}
       <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs">
         <div className="flex items-start justify-between gap-3 mb-2.5">
           <div className="flex items-center gap-2.5">
@@ -36,30 +36,37 @@ export const StatutoryDeclarationsList: React.FC<StatutoryDeclarationsListProps>
             <div>
               <div className="flex items-center gap-2">
                 <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                  1. Manufacturer / Packer / Importer Identity
+                  1. Manufacturer / Packer / Importer Details
                 </h4>
-                <span className="text-[10px] text-blue-900 bg-blue-50 px-1.5 py-0.2 rounded font-mono font-semibold">
+                <span className="text-[10px] text-blue-900 bg-blue-50 px-1.5 py-0.5 rounded font-mono font-semibold">
                   Rule 6(1)(a)
                 </span>
               </div>
               <p className="text-[11px] text-slate-500">
-                Complete corporate name, physical address, and qualifying prefix ("Mfg by", "Packed by", "Mkt by").
+                Complete corporate name, physical address, and statutory qualifying prefix ("Mfg by", "Packed by", "Mkt by").
               </p>
             </div>
           </div>
 
           <span
             className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 border shrink-0 ${
-              d.manufacturer_or_packer.found
+              d.manufacturer_or_packer.found && d.manufacturer_or_packer.qualifying_prefix && d.manufacturer_or_packer.full_address
                 ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
                 : 'bg-rose-50 text-rose-800 border-rose-300'
             }`}
           >
             {d.manufacturer_or_packer.found ? (
-              <>
-                <CheckCircle2 className="h-3 w-3 text-emerald-600" />
-                <span>Present</span>
-              </>
+              d.manufacturer_or_packer.qualifying_prefix && d.manufacturer_or_packer.full_address ? (
+                <>
+                  <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+                  <span>Compliant</span>
+                </>
+              ) : (
+                <>
+                  <AlertTriangle className="h-3 w-3 text-rose-600" />
+                  <span>Deficient Details</span>
+                </>
+              )
             ) : (
               <>
                 <XCircle className="h-3 w-3 text-rose-600" />
@@ -74,11 +81,11 @@ export const StatutoryDeclarationsList: React.FC<StatutoryDeclarationsListProps>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
                 <span className="text-[10px] font-bold text-slate-500 uppercase">
-                  Qualifying Prefix:
+                  Statutory Qualifying Prefix:
                 </span>
                 <p className="text-slate-900 font-semibold mt-0.5">
                   {d.manufacturer_or_packer.qualifying_prefix || (
-                    <span className="text-rose-600 italic">None detected (Non-compliant omission)</span>
+                    <span className="text-rose-600 italic">None detected (Violates Explanation I/II to Rule 6(1)(a))</span>
                   )}
                 </p>
               </div>
@@ -118,7 +125,7 @@ export const StatutoryDeclarationsList: React.FC<StatutoryDeclarationsListProps>
         )}
       </div>
 
-      {/* 2. Country of Origin */}
+      {/* 2. Country of Origin (Rule 6(1)(aa)) */}
       <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs">
         <div className="flex items-start justify-between gap-3 mb-2">
           <div className="flex items-center gap-2.5">
@@ -130,48 +137,59 @@ export const StatutoryDeclarationsList: React.FC<StatutoryDeclarationsListProps>
                 <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
                   2. Country of Origin
                 </h4>
-                <span className="text-[10px] text-blue-900 bg-blue-50 px-1.5 py-0.2 rounded font-mono font-semibold">
-                  Rule 6(1)(ea)
+                <span className="text-[10px] text-blue-900 bg-blue-50 px-1.5 py-0.5 rounded font-mono font-semibold">
+                  Rule 6(1)(aa)
                 </span>
               </div>
               <p className="text-[11px] text-slate-500">
-                Mandatory disclosure of country of origin or manufacture.
+                Standard Syntax: "Country of Origin: [Country]", "Made in [Country]", or "Manufactured in [Country]".
               </p>
             </div>
           </div>
 
           <span
             className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 border shrink-0 ${
-              d.country_of_origin.found
+              d.country_of_origin.found && d.country_of_origin.country_name
                 ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
                 : 'bg-rose-50 text-rose-800 border-rose-300'
             }`}
           >
-            {d.country_of_origin.found ? (
+            {d.country_of_origin.found && d.country_of_origin.country_name ? (
               <>
                 <CheckCircle2 className="h-3 w-3 text-emerald-600" />
-                <span>Declared ({d.country_of_origin.country_name})</span>
+                <span>Present</span>
               </>
             ) : (
               <>
                 <XCircle className="h-3 w-3 text-rose-600" />
-                <span>Violation: Missing</span>
+                <span>Missing / Ambiguous</span>
               </>
             )}
           </span>
         </div>
 
-        <div className="mt-2 text-xs">
-          <div className="bg-amber-50/50 p-2.5 rounded-lg border border-amber-200 font-mono text-[11px] text-amber-950">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3 pt-3 border-t border-slate-100 text-xs">
+          <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+            <span className="text-[10px] font-bold text-slate-500 uppercase">
+              Parsed Origin Country:
+            </span>
+            <p className="text-slate-900 font-bold mt-0.5">
+              {d.country_of_origin.country_name || (
+                <span className="text-rose-600 italic">Not Declared / Ambiguous</span>
+              )}
+            </p>
+          </div>
+
+          <div className="bg-amber-50/50 p-2.5 rounded-lg border border-amber-200 font-mono text-[11px] text-amber-950 flex flex-col justify-center">
             <span className="text-[10px] uppercase font-bold text-amber-800 font-sans block mb-0.5">
-              Verbatim Extracted OCR Text:
+              Extracted Raw Text:
             </span>
             {d.country_of_origin.raw_text ? `"${d.country_of_origin.raw_text}"` : 'null'}
           </div>
         </div>
       </div>
 
-      {/* 3. Common or Generic Name */}
+      {/* 3. Common or Generic Product Name (Rule 6(1)(b)) */}
       <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs">
         <div className="flex items-start justify-between gap-3 mb-2">
           <div className="flex items-center gap-2.5">
@@ -181,14 +199,14 @@ export const StatutoryDeclarationsList: React.FC<StatutoryDeclarationsListProps>
             <div>
               <div className="flex items-center gap-2">
                 <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                  3. Common or Generic Name
+                  3. Common or Generic Product Name
                 </h4>
-                <span className="text-[10px] text-blue-900 bg-blue-50 px-1.5 py-0.2 rounded font-mono font-semibold">
+                <span className="text-[10px] text-blue-900 bg-blue-50 px-1.5 py-0.5 rounded font-mono font-semibold">
                   Rule 6(1)(b)
                 </span>
               </div>
               <p className="text-[11px] text-slate-500">
-                True generic commodity nomenclature on retail container.
+                Clear generic name of commodity visible; brand names alone are non-compliant.
               </p>
             </div>
           </div>
@@ -214,7 +232,7 @@ export const StatutoryDeclarationsList: React.FC<StatutoryDeclarationsListProps>
         </div>
       </div>
 
-      {/* 4. Net Quantity & Statutory SI Units */}
+      {/* 4. Net Quantity & Standard SI Units (Rule 6(1)(c) & Rule 12) */}
       <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs">
         <div className="flex items-start justify-between gap-3 mb-2.5">
           <div className="flex items-center gap-2.5">
@@ -224,14 +242,14 @@ export const StatutoryDeclarationsList: React.FC<StatutoryDeclarationsListProps>
             <div>
               <div className="flex items-center gap-2">
                 <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                  4. Net Quantity & Statutory SI Units
+                  4. Net Quantity & Standard SI Units
                 </h4>
-                <span className="text-[10px] text-blue-900 bg-blue-50 px-1.5 py-0.2 rounded font-mono font-semibold">
+                <span className="text-[10px] text-blue-900 bg-blue-50 px-1.5 py-0.5 rounded font-mono font-semibold">
                   Rule 6(1)(c) & Rule 12
                 </span>
               </div>
               <p className="text-[11px] text-slate-500">
-                Permitted SI symbols only: <strong className="text-slate-800 font-mono">g, kg, ml, L, l, cm, m, N, U</strong>. Symbols like "gms", "gm", "ltrs" are illegal.
+                Permitted SI symbols only: <strong className="text-slate-800 font-mono">g, kg, ml, L, l, cm, m, N, U</strong>. Symbols like "gms", "gm", "ltrs", "pcs" are illegal.
               </p>
             </div>
           </div>
@@ -240,7 +258,7 @@ export const StatutoryDeclarationsList: React.FC<StatutoryDeclarationsListProps>
             className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 border shrink-0 ${
               d.net_quantity.is_standard_si_unit
                 ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
-                : 'bg-rose-50 text-rose-800 border-rose-300 animate-pulse'
+                : 'bg-rose-50 text-rose-800 border-rose-300'
             }`}
           >
             {d.net_quantity.is_standard_si_unit ? (
@@ -304,7 +322,7 @@ export const StatutoryDeclarationsList: React.FC<StatutoryDeclarationsListProps>
         </div>
       </div>
 
-      {/* 5. Maximum Retail Price (MRP) & Tax Inclusive Clause */}
+      {/* 5. Maximum Retail Price (MRP) & Tax Clause (Rule 6(1)(e) & Rule 2(m)) */}
       <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs">
         <div className="flex items-start justify-between gap-3 mb-2.5">
           <div className="flex items-center gap-2.5">
@@ -314,14 +332,14 @@ export const StatutoryDeclarationsList: React.FC<StatutoryDeclarationsListProps>
             <div>
               <div className="flex items-center gap-2">
                 <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                  5. MRP & Mandatory Tax-Inclusive Clause
+                  5. Maximum Retail Price (MRP) & Tax Clause
                 </h4>
-                <span className="text-[10px] text-blue-900 bg-blue-50 px-1.5 py-0.2 rounded font-mono font-semibold">
-                  Rule 6(1)(e)
+                <span className="text-[10px] text-blue-900 bg-blue-50 px-1.5 py-0.5 rounded font-mono font-semibold">
+                  Rule 6(1)(e) & Rule 2(m)
                 </span>
               </div>
               <p className="text-[11px] text-slate-500">
-                Mandatory disclosure of <strong className="text-slate-800">"inclusive of all taxes"</strong> or <strong className="text-slate-800">"incl. of all taxes"</strong>.
+                Mandatory disclosure of <strong className="text-slate-800">"inclusive of all taxes"</strong> or <strong className="text-slate-800">"incl. of all taxes"</strong> in Indian Rupees.
               </p>
             </div>
           </div>
@@ -376,7 +394,7 @@ export const StatutoryDeclarationsList: React.FC<StatutoryDeclarationsListProps>
                   d.mrp.has_tax_inclusive_clause ? 'text-emerald-700' : 'text-rose-600'
                 }`}
               >
-                {d.mrp.raw_tax_clause_text || (d.mrp.has_tax_inclusive_clause ? 'Verified' : 'Omitted')}
+                {d.mrp.raw_tax_clause_text || (d.mrp.has_tax_inclusive_clause ? 'Verified' : 'Omitted (Violation)')}
               </p>
             </div>
           </div>
@@ -390,125 +408,59 @@ export const StatutoryDeclarationsList: React.FC<StatutoryDeclarationsListProps>
         </div>
       </div>
 
-      {/* 6. Unit Sale Price (USP) */}
+      {/* 6. Month and Year of Manufacture / Packing (Rule 6(1)(d)) */}
       <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs">
-        <div className="flex items-start justify-between gap-3 mb-2.5">
+        <div className="flex items-start justify-between gap-3 mb-2">
           <div className="flex items-center gap-2.5">
             <div className="p-2 rounded-lg bg-blue-50 text-blue-900 border border-blue-200">
-              <Coins className="h-4 w-4" />
+              <Calendar className="h-4 w-4" />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                  6. Unit Sale Price (USP)
+                  6. Month & Year of Manufacture / Packing / Import
                 </h4>
-                <span className="text-[10px] text-blue-900 bg-blue-50 px-1.5 py-0.2 rounded font-mono font-semibold">
-                  Rule 6(1)(e) Amendment
+                <span className="text-[10px] text-blue-900 bg-blue-50 px-1.5 py-0.5 rounded font-mono font-semibold">
+                  Rule 6(1)(d)
                 </span>
               </div>
               <p className="text-[11px] text-slate-500">
-                Price per g, kg, ml, l, or number (mandatory w.e.f. Dec 2022).
+                Standard syntax ("MM/YYYY", "MM-YYYY", or "Month YYYY").
               </p>
             </div>
           </div>
 
           <span
             className={`text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${
-              d.unit_sale_price.found
+              d.date_of_manufacture_or_pack.found
                 ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
-                : 'bg-amber-50 text-amber-800 border-amber-300'
+                : 'bg-rose-50 text-rose-800 border-rose-300'
             }`}
           >
-            {d.unit_sale_price.found ? 'Declared' : 'Not Declared'}
+            {d.date_of_manufacture_or_pack.found ? 'Present' : 'Missing'}
           </span>
         </div>
 
-        <div className="space-y-2 mt-3 pt-3 border-t border-slate-100 text-xs">
-          <div className="grid grid-cols-2 gap-2">
-            <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
-              <span className="text-[10px] font-bold text-slate-500 uppercase">
-                Declared Unit Price:
-              </span>
-              <p className="text-slate-900 font-semibold mt-0.5">
-                {d.unit_sale_price.declared_unit_price !== null
-                  ? `₹ ${d.unit_sale_price.declared_unit_price}`
-                  : '—'}
-              </p>
-            </div>
-
-            <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
-              <span className="text-[10px] font-bold text-slate-500 uppercase">
-                Base Unit:
-              </span>
-              <p className="text-slate-900 font-semibold mt-0.5">
-                {d.unit_sale_price.declared_base_unit || '—'}
-              </p>
-            </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3 pt-3 border-t border-slate-100 text-xs">
+          <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+            <span className="text-[10px] font-bold text-slate-500 uppercase">
+              Parsed Packaging Date:
+            </span>
+            <p className="text-slate-900 font-bold mt-0.5">
+              {d.date_of_manufacture_or_pack.parsed_month_year || 'Not Parsable'}
+            </p>
           </div>
 
-          <div className="bg-amber-50/50 p-2.5 rounded-lg border border-amber-200 font-mono text-[11px] text-amber-950">
+          <div className="bg-amber-50/50 p-2.5 rounded-lg border border-amber-200 font-mono text-[11px] text-amber-950 flex flex-col justify-center">
             <span className="text-[10px] uppercase font-bold text-amber-800 font-sans block mb-0.5">
               Verbatim Extracted OCR Text:
             </span>
-            {d.unit_sale_price.raw_text ? `"${d.unit_sale_price.raw_text}"` : 'null'}
+            {d.date_of_manufacture_or_pack.raw_text ? `"${d.date_of_manufacture_or_pack.raw_text}"` : 'null'}
           </div>
         </div>
       </div>
 
-      {/* 7 & 8. Manufacture Date & Expiry */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs">
-          <div className="flex items-center gap-2 mb-2">
-            <Calendar className="h-4 w-4 text-blue-900" />
-            <div>
-              <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                7. Date of Mfg / Pack
-              </h4>
-              <span className="text-[10px] text-blue-900 font-mono font-semibold">Rule 6(1)(d)</span>
-            </div>
-          </div>
-          <div className="mt-2 space-y-1.5 text-xs">
-            <div className="bg-slate-50 p-2 rounded-lg border border-slate-200">
-              <span className="text-[10px] font-bold text-slate-500 uppercase">
-                Parsed MM/YYYY:
-              </span>
-              <p className="text-slate-900 font-semibold mt-0.5">
-                {d.date_of_manufacture_or_pack.parsed_month_year || '—'}
-              </p>
-            </div>
-            <div className="bg-amber-50/50 p-2 rounded-lg border border-amber-200 font-mono text-[11px] text-amber-950">
-              "{d.date_of_manufacture_or_pack.raw_text}"
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs">
-          <div className="flex items-center gap-2 mb-2">
-            <Clock className="h-4 w-4 text-blue-900" />
-            <div>
-              <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                8. Expiry / Best Before
-              </h4>
-              <span className="text-[10px] text-slate-500 font-mono">Consumer Disclosure</span>
-            </div>
-          </div>
-          <div className="mt-2 space-y-1.5 text-xs">
-            <div className="bg-slate-50 p-2 rounded-lg border border-slate-200">
-              <span className="text-[10px] font-bold text-slate-500 uppercase">
-                Declaration:
-              </span>
-              <p className="text-slate-900 font-semibold mt-0.5">
-                {d.expiry_or_best_before.found ? 'Found' : 'Not Declared'}
-              </p>
-            </div>
-            <div className="bg-amber-50/50 p-2 rounded-lg border border-amber-200 font-mono text-[11px] text-amber-950">
-              {d.expiry_or_best_before.raw_text ? `"${d.expiry_or_best_before.raw_text}"` : 'null'}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* 9. Consumer Care Details (4-Point Mandate) */}
+      {/* 7. Consumer Care Details Quad Check (Rule 6(2)) */}
       <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs">
         <div className="flex items-start justify-between gap-3 mb-2.5">
           <div className="flex items-center gap-2.5">
@@ -518,14 +470,14 @@ export const StatutoryDeclarationsList: React.FC<StatutoryDeclarationsListProps>
             <div>
               <div className="flex items-center gap-2">
                 <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                  9. Consumer Care Cell (4-Point Mandate)
+                  7. Consumer Care Details Quad Check
                 </h4>
-                <span className="text-[10px] text-blue-900 bg-blue-50 px-1.5 py-0.2 rounded font-mono font-semibold">
-                  Rule 6(1)(a) Proviso
+                <span className="text-[10px] text-blue-900 bg-blue-50 px-1.5 py-0.5 rounded font-mono font-semibold">
+                  Rule 6(2)
                 </span>
               </div>
               <p className="text-[11px] text-slate-500">
-                Contact person, postal address, telephone, and email address are all four statutory requirements.
+                Contact person/designation, postal address, telephone/helpline, and email address are ALL FOUR statutory mandates.
               </p>
             </div>
           </div>
@@ -540,7 +492,12 @@ export const StatutoryDeclarationsList: React.FC<StatutoryDeclarationsListProps>
                 : 'bg-rose-50 text-rose-800 border-rose-300'
             }`}
           >
-            {d.consumer_care_details.found ? 'Audited' : 'Missing'}
+            {d.consumer_care_details.has_contact_person_or_office &&
+            d.consumer_care_details.has_postal_address &&
+            d.consumer_care_details.has_phone_number &&
+            d.consumer_care_details.has_email_address
+              ? '4/4 Quad Verified'
+              : 'Quad Incomplete'}
           </span>
         </div>
 
@@ -548,7 +505,7 @@ export const StatutoryDeclarationsList: React.FC<StatutoryDeclarationsListProps>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             <div className="bg-slate-50 p-2 rounded-lg border border-slate-200 flex items-center justify-between">
               <span className="text-[10px] text-slate-600 uppercase font-bold">
-                Designation
+                1. Designation
               </span>
               {d.consumer_care_details.has_contact_person_or_office ? (
                 <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
@@ -559,7 +516,7 @@ export const StatutoryDeclarationsList: React.FC<StatutoryDeclarationsListProps>
 
             <div className="bg-slate-50 p-2 rounded-lg border border-slate-200 flex items-center justify-between">
               <span className="text-[10px] text-slate-600 uppercase font-bold">
-                Postal Address
+                2. Postal Address
               </span>
               {d.consumer_care_details.has_postal_address ? (
                 <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
@@ -570,7 +527,7 @@ export const StatutoryDeclarationsList: React.FC<StatutoryDeclarationsListProps>
 
             <div className="bg-slate-50 p-2 rounded-lg border border-slate-200 flex items-center justify-between">
               <span className="text-[10px] text-slate-600 uppercase font-bold">
-                Telephone No.
+                3. Telephone No.
               </span>
               {d.consumer_care_details.has_phone_number ? (
                 <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
@@ -581,7 +538,7 @@ export const StatutoryDeclarationsList: React.FC<StatutoryDeclarationsListProps>
 
             <div className="bg-slate-50 p-2 rounded-lg border border-slate-200 flex items-center justify-between">
               <span className="text-[10px] text-slate-600 uppercase font-bold">
-                Email Address
+                4. Email Address
               </span>
               {d.consumer_care_details.has_email_address ? (
                 <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
@@ -592,16 +549,16 @@ export const StatutoryDeclarationsList: React.FC<StatutoryDeclarationsListProps>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            <div className="bg-slate-50 p-2 rounded-lg border border-slate-200">
+            <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
               <span className="text-[10px] font-bold text-slate-500 uppercase">
-                Extracted Telephone:
+                Extracted Telephone / Helpline:
               </span>
               <p className="text-slate-900 font-mono mt-0.5">
                 {d.consumer_care_details.extracted_phone || 'null'}
               </p>
             </div>
 
-            <div className="bg-slate-50 p-2 rounded-lg border border-slate-200">
+            <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
               <span className="text-[10px] font-bold text-slate-500 uppercase">
                 Extracted Email:
               </span>
@@ -616,6 +573,114 @@ export const StatutoryDeclarationsList: React.FC<StatutoryDeclarationsListProps>
               Verbatim Extracted OCR Text:
             </span>
             "{d.consumer_care_details.raw_text}"
+          </div>
+        </div>
+      </div>
+
+      {/* 8. Unit Sale Price (USP) (Rule 6(11)) */}
+      <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs">
+        <div className="flex items-start justify-between gap-3 mb-2.5">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-lg bg-blue-50 text-blue-900 border border-blue-200">
+              <Coins className="h-4 w-4" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                  8. Unit Sale Price (USP)
+                </h4>
+                <span className="text-[10px] text-blue-900 bg-blue-50 px-1.5 py-0.5 rounded font-mono font-semibold">
+                  Rule 6(11)
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500">
+                Required alongside MRP for variable package sizes (per g/ml for &lt;1kg/L; per kg/L for ≥1kg/L).
+              </p>
+            </div>
+          </div>
+
+          <span
+            className={`text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${
+              d.unit_sale_price.found && d.unit_sale_price.declared_unit_price !== null
+                ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                : 'bg-amber-50 text-amber-800 border-amber-300'
+            }`}
+          >
+            {d.unit_sale_price.found ? 'Declared' : 'Advisory / Not Found'}
+          </span>
+        </div>
+
+        <div className="space-y-2 mt-3 pt-3 border-t border-slate-100 text-xs">
+          <div className="grid grid-cols-2 gap-2">
+            <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+              <span className="text-[10px] font-bold text-slate-500 uppercase">
+                Unit Price:
+              </span>
+              <p className="text-slate-900 font-bold mt-0.5">
+                {d.unit_sale_price.declared_unit_price !== null
+                  ? `₹ ${d.unit_sale_price.declared_unit_price}`
+                  : 'null'}
+              </p>
+            </div>
+
+            <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+              <span className="text-[10px] font-bold text-slate-500 uppercase">
+                Base Unit:
+              </span>
+              <p className="text-slate-900 font-bold mt-0.5">
+                {d.unit_sale_price.declared_base_unit || 'null'}
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-amber-50/50 p-2.5 rounded-lg border border-amber-200 font-mono text-[11px] text-amber-950">
+            <span className="text-[10px] uppercase font-bold text-amber-800 font-sans block mb-0.5">
+              Verbatim Extracted OCR Text:
+            </span>
+            {d.unit_sale_price.raw_text ? `"${d.unit_sale_price.raw_text}"` : 'null'}
+          </div>
+        </div>
+      </div>
+
+      {/* 9. Expiry / Best Before Date (Rule 6(1)(f)) */}
+      <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs">
+        <div className="flex items-start justify-between gap-3 mb-2">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-lg bg-blue-50 text-blue-900 border border-blue-200">
+              <Clock className="h-4 w-4" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                  9. Expiry / Best Before Date
+                </h4>
+                <span className="text-[10px] text-blue-900 bg-blue-50 px-1.5 py-0.5 rounded font-mono font-semibold">
+                  Rule 6(1)(f)
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500">
+                Period of usability or consumer consumption validity.
+              </p>
+            </div>
+          </div>
+
+          <span
+            className={`text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${
+              d.expiry_or_best_before.found
+                ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                : 'bg-slate-100 text-slate-600 border-slate-300'
+            }`}
+          >
+            {d.expiry_or_best_before.found ? 'Present' : 'Not Detected'}
+          </span>
+        </div>
+
+        <div className="mt-2 text-xs">
+          <div className="bg-amber-50/50 p-2.5 rounded-lg border border-amber-200 font-mono text-[11px] text-amber-950">
+            <span className="text-[10px] uppercase font-bold text-amber-800 font-sans block mb-0.5">
+              Extracted Best Before / Expiry:
+            </span>
+            {d.expiry_or_best_before.raw_text ? `"${d.expiry_or_best_before.raw_text}"` : 'null'}
           </div>
         </div>
       </div>

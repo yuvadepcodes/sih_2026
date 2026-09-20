@@ -1,0 +1,6 @@
+{
+  "name": "Legal Metrology Packaging Inspector",
+  "description": "AI Document Processing Engine and Senior Inspector for Department of Consumer Affairs (Govt. of India), extracting mandatory packaging declarations under Legal Metrology (Packaged Commodities) Rules, 2011.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,13 +1,200 @@
 import { LegalMetrologyAuditReport, StatutoryRuleCheck } from '../types';
 
+export interface CategorizedDefect {
+  id: string;
+  category: 'MISSING' | 'MISLEADING' | 'NON_STANDARD';
+  categoryLabel: string;
+  ruleCitation: string;
+  ruleTitle: string;
+  finding: string;
+  description: string;
+  statutoryPenaltyNotice?: string;
+  legalActSection?: string;
+}
+
+export interface SearchableDeclarationItem {
+  id: string;
+  title: string;
+  label: string;
+  value: string;
+  rawText?: string | null;
+  ruleCitation: string;
+  status: 'COMPLIANT' | 'VIOLATION' | 'WARNING';
+  category: string;
+}
+
 export interface InspectionSummary {
   status: 'COMPLIANT' | 'NON_COMPLIANT' | 'PARTIAL_REVIEW';
   complianceScore: number; // 0 - 100
   totalViolations: number;
   totalWarnings: number;
   ruleChecks: StatutoryRuleCheck[];
+  categorizedDefects: {
+    missing: CategorizedDefect[];
+    misleading: CategorizedDefect[];
+    nonStandard: CategorizedDefect[];
+  };
+  searchableDeclarations: SearchableDeclarationItem[];
   statutoryPenaltyEstimate: string;
   inspectorVerdict: string;
+}
+
+export function categorizeStatutoryDefects(checks: StatutoryRuleCheck[]): {
+  missing: CategorizedDefect[];
+  misleading: CategorizedDefect[];
+  nonStandard: CategorizedDefect[];
+} {
+  const missing: CategorizedDefect[] = [];
+  const misleading: CategorizedDefect[] = [];
+  const nonStandard: CategorizedDefect[] = [];
+
+  for (const check of checks) {
+    if (check.status === 'COMPLIANT' || check.status === 'NOT_APPLICABLE') continue;
+
+    const text = (check.ruleTitle + ' ' + check.description + ' ' + check.finding + ' ' + check.id).toLowerCase();
+
+    if (
+      text.includes('misleading') ||
+      text.includes('deceptive') ||
+      text.includes('sticker') ||
+      text.includes('alteration') ||
+      text.includes('ambiguous origin') ||
+      text.includes('designed in') ||
+      text.includes('slack fill')
+    ) {
+      misleading.push({
+        ...check,
+        category: 'MISLEADING',
+        categoryLabel: 'Misleading Declaration',
+      });
+    } else if (
+      text.includes('non-standard') ||
+      text.includes('si unit') ||
+      text.includes('forbidden') ||
+      text.includes('font size') ||
+      text.includes('numeral height') ||
+      text.includes('qualifying prefix') ||
+      text.includes('contrast') ||
+      text.includes('symbol')
+    ) {
+      nonStandard.push({
+        ...check,
+        category: 'NON_STANDARD',
+        categoryLabel: 'Non-Standard Declaration',
+      });
+    } else {
+      missing.push({
+        ...check,
+        category: 'MISSING',
+        categoryLabel: 'Missing Mandatory Declaration',
+      });
+    }
+  }
+
+  return { missing, misleading, nonStandard };
+}
+
+export function getSearchableDeclarations(report: LegalMetrologyAuditReport): SearchableDeclarationItem[] {
+  const d = report.declarations;
+  const items: SearchableDeclarationItem[] = [];
+
+  // 1. Manufacturer
+  items.push({
+    id: 'mfg',
+    title: 'Manufacturer / Packer / Importer Identity & Address',
+    label: 'Entity, Physical Address & Prefix',
+    value: `${d.manufacturer_or_packer.qualifying_prefix || ''} ${d.manufacturer_or_packer.entity_name || ''} - ${d.manufacturer_or_packer.full_address || ''}`.trim() || 'Not declared on scanned package',
+    rawText: d.manufacturer_or_packer.raw_text,
+    ruleCitation: 'Rule 6(1)(a)',
+    status: d.manufacturer_or_packer.found ? (d.manufacturer_or_packer.qualifying_prefix && d.manufacturer_or_packer.full_address ? 'COMPLIANT' : 'VIOLATION') : 'VIOLATION',
+    category: 'Manufacturer',
+  });
+
+  // 2. Country of Origin
+  items.push({
+    id: 'origin',
+    title: 'Country of Origin',
+    label: 'Origin of Pre-Packaged Commodity',
+    value: d.country_of_origin.country_name || 'Not declared on scanned package',
+    rawText: d.country_of_origin.raw_text,
+    ruleCitation: 'Rule 6(1)(aa)',
+    status: d.country_of_origin.found && d.country_of_origin.country_name ? 'COMPLIANT' : 'VIOLATION',
+    category: 'Country of Origin',
+  });
+
+  // 3. Generic Name
+  items.push({
+    id: 'name',
+    title: 'Common or Generic Commodity Name',
+    label: 'Generic Commodity Identification',
+    value: d.common_or_generic_name.raw_text || 'Not declared on scanned package',
+    rawText: d.common_or_generic_name.raw_text,
+    ruleCitation: 'Rule 6(1)(b)',
+    status: d.common_or_generic_name.found ? 'COMPLIANT' : 'VIOLATION',
+    category: 'Product Name',
+  });
+
+  // 4. Net Quantity
+  items.push({
+    id: 'net_qty',
+    title: 'Net Quantity & SI Metric Units',
+    label: 'Standard SI Metric Net Content',
+    value: `${d.net_quantity.numeric_value || ''} ${d.net_quantity.declared_unit || ''}`.trim() || 'Not declared',
+    rawText: d.net_quantity.raw_text,
+    ruleCitation: 'Rule 6(1)(c) & Rule 12',
+    status: d.net_quantity.found && d.net_quantity.is_standard_si_unit ? 'COMPLIANT' : 'VIOLATION',
+    category: 'Net Quantity',
+  });
+
+  // 5. MRP
+  items.push({
+    id: 'mrp',
+    title: 'Maximum Retail Price (MRP) & Tax Clause',
+    label: 'Retail Selling Price with Tax Clause',
+    value: `${d.mrp.currency_symbol || '₹'} ${d.mrp.numeric_amount !== null ? d.mrp.numeric_amount : ''} ${d.mrp.has_tax_inclusive_clause ? '(inclusive of all taxes)' : '(tax clause missing)'}`.trim() || 'Not declared',
+    rawText: d.mrp.raw_text,
+    ruleCitation: 'Rule 6(1)(e) & Rule 2(m)',
+    status: d.mrp.found && d.mrp.has_tax_inclusive_clause ? 'COMPLIANT' : 'VIOLATION',
+    category: 'MRP & Price',
+  });
+
+  // 6. Unit Sale Price
+  items.push({
+    id: 'usp',
+    title: 'Unit Sale Price (USP)',
+    label: 'Per Unit Standard Price (per g/ml/kg/L)',
+    value: d.unit_sale_price.found && d.unit_sale_price.declared_unit_price !== null ? `₹ ${d.unit_sale_price.declared_unit_price} / ${d.unit_sale_price.declared_base_unit || 'unit'}` : 'Not declared on package',
+    rawText: d.unit_sale_price.raw_text,
+    ruleCitation: 'Rule 6(11)',
+    status: d.unit_sale_price.found ? 'COMPLIANT' : 'WARNING',
+    category: 'MRP & Price',
+  });
+
+  // 7. Date of Packing / Manufacture
+  items.push({
+    id: 'date',
+    title: 'Month & Year of Manufacture / Packing',
+    label: 'Packaging Date Declaration',
+    value: d.date_of_manufacture_or_pack.parsed_month_year || d.date_of_manufacture_or_pack.raw_text || 'Not declared on scanned package',
+    rawText: d.date_of_manufacture_or_pack.raw_text,
+    ruleCitation: 'Rule 6(1)(d)',
+    status: d.date_of_manufacture_or_pack.found ? 'COMPLIANT' : 'VIOLATION',
+    category: 'Date & Batch',
+  });
+
+  // 8. Consumer Care Details
+  items.push({
+    id: 'care',
+    title: 'Consumer Care Cell (4-Point Redressal)',
+    label: 'Help Desk Phone, Email & Address',
+    value: `Helpline: ${d.consumer_care_details.extracted_phone || 'Missing'}, Email: ${d.consumer_care_details.extracted_email || 'Missing'}`,
+    rawText: d.consumer_care_details.raw_text,
+    ruleCitation: 'Rule 6(2)',
+    status: d.consumer_care_details.found && d.consumer_care_details.has_phone_number && d.consumer_care_details.has_email_address ? 'COMPLIANT' : 'VIOLATION',
+    category: 'Consumer Care',
+  });
+
+  return items;
 }
 
 export const VALID_SI_UNITS = ['g', 'kg', 'ml', 'L', 'l', 'cm', 'm', 'cm²', 'm²', 'N', 'U'];
@@ -379,12 +566,17 @@ export function evaluateLegalMetrologyCompliance(
     verdict = `CONDITIONAL: Mandatory fields present but with ${warnings} advisory warning(s).`;
   }
 
+  const categorizedDefects = categorizeStatutoryDefects(checks);
+  const searchableDeclarations = getSearchableDeclarations(report);
+
   return {
     status,
     complianceScore: score,
     totalViolations: violations,
     totalWarnings: warnings,
     ruleChecks: checks,
+    categorizedDefects,
+    searchableDeclarations,
     statutoryPenaltyEstimate: penalty,
     inspectorVerdict: verdict
   };

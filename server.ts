@@ -175,25 +175,34 @@ app.get('/api/health', (req: Request, res: Response) => {
   });
 });
 
-// Packaging image analysis endpoint
+// Packaging image analysis endpoint (supports multiple angles of the package)
 app.post('/api/analyze-packaging', async (req: Request, res: Response) => {
   try {
-    const { imageBase64, mimeType = 'image/jpeg', sourceType = 'physical_label_or_listing' } = req.body;
+    const { images, imageBase64, mimeType = 'image/jpeg', sourceType = 'physical_label_or_listing' } = req.body;
 
-    if (!imageBase64) {
-      return res.status(400).json({ error: 'Image data is required (imageBase64)' });
+    // Collect array of input images (supporting both array and single string)
+    const rawImages: string[] = Array.isArray(images) && images.length > 0
+      ? images
+      : (imageBase64 ? [imageBase64] : []);
+
+    if (rawImages.length === 0) {
+      return res.status(400).json({ error: 'At least one packaging image is required' });
     }
 
-    // Strip data URI prefix if present (e.g. data:image/png;base64,)
-    let cleanBase64 = imageBase64;
-    let detectedMime = mimeType;
-    if (imageBase64.includes(';base64,')) {
-      const parts = imageBase64.split(';base64,');
-      cleanBase64 = parts[1];
-      const matchMime = parts[0].match(/data:(.*)/);
-      if (matchMime && matchMime[1]) {
-        detectedMime = matchMime[1];
+    // Process and clean each image
+    const imageList: Array<{ data: string; mimeType: string }> = [];
+    for (const rawImg of rawImages) {
+      let cleanData = rawImg;
+      let detectedMime = mimeType;
+      if (rawImg.includes(';base64,')) {
+        const parts = rawImg.split(';base64,');
+        cleanData = parts[1];
+        const matchMime = parts[0].match(/data:(.*)/);
+        if (matchMime && matchMime[1]) {
+          detectedMime = matchMime[1];
+        }
       }
+      imageList.push({ data: cleanData, mimeType: detectedMime });
     }
 
     const ai = getGeminiClient();
@@ -209,6 +218,24 @@ app.post('/api/analyze-packaging', async (req: Request, res: Response) => {
     let response: any = null;
     let lastError: any = null;
 
+    // Build multimodal parts: one inlineData per angle image, followed by multi-angle prompt
+    const contentParts: any[] = imageList.map((img, idx) => ({
+      inlineData: {
+        data: img.data,
+        mimeType: img.mimeType,
+      },
+    }));
+
+    contentParts.push({
+      text: `${SYSTEM_EXTRACTION_PROMPT}
+
+### IMPORTANT MULTI-ANGLE PACKAGING AUDIT:
+You are analyzing ${imageList.length} photo(s) showing different angles and panels of the product packaging (e.g., front face, back panel, sides, bottom/top flaps).
+- Carefully extract and synthesize all statutory declarations found across ALL provided angles into one complete audit.
+- If Net Quantity is on the front, Manufacturer on the back, and MRP with date on the bottom flap, combine them into the complete legal declaration record.
+- Packaging context is "${sourceType}". Return strictly valid JSON conforming to the schema above.`,
+    });
+
     for (const model of CANDIDATE_MODELS) {
       try {
         response = await ai.models.generateContent({
@@ -216,17 +243,7 @@ app.post('/api/analyze-packaging', async (req: Request, res: Response) => {
           contents: [
             {
               role: 'user',
-              parts: [
-                {
-                  inlineData: {
-                    data: cleanBase64,
-                    mimeType: detectedMime,
-                  },
-                },
-                {
-                  text: `${SYSTEM_EXTRACTION_PROMPT}\n\nNote: Packaging context is "${sourceType}". Return strictly valid JSON conforming to the schema above.`,
-                },
-              ],
+              parts: contentParts,
             },
           ],
           config: {

@@ -15,7 +15,7 @@ import { SAMPLE_PACKAGING_CASES } from './data/samplePackages';
 export function App() {
   const [selectedLanguage, setSelectedLanguage] = useState('en');
   // Clean initial state: no image pre-loaded, no report pre-loaded!
-  const [currentImage, setCurrentImage] = useState<string | null>(null);
+  const [images, setImages] = useState<string[]>([]);
   const [auditReport, setAuditReport] = useState<LegalMetrologyAuditReport | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -27,20 +27,30 @@ export function App() {
   // Compute compliance summary from active report
   const summary = auditReport ? evaluateLegalMetrologyCompliance(auditReport) : null;
 
-  const handleImageSelected = (base64: string) => {
-    setCurrentImage(base64);
+  const handleAddImage = (base64: string) => {
+    setImages((prev) => [...prev, base64]);
     setErrorMessage(null);
     setAuditReport(null); // Clear report until user presses Check!
   };
 
-  const handleClearImage = () => {
-    setCurrentImage(null);
+  const handleAddMultipleImages = (list: string[]) => {
+    setImages((prev) => [...prev, ...list]);
+    setErrorMessage(null);
+    setAuditReport(null);
+  };
+
+  const handleRemoveImage = (index: number) => {
+    setImages((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleClearImages = () => {
+    setImages([]);
     setAuditReport(null);
     setErrorMessage(null);
   };
 
   const handleRunAudit = async () => {
-    if (!currentImage) return;
+    if (images.length === 0) return;
 
     setIsLoading(true);
     setErrorMessage(null);
@@ -50,7 +60,7 @@ export function App() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          imageBase64: currentImage,
+          images,
           sourceType: 'physical_label_or_listing',
         }),
       });
@@ -65,20 +75,23 @@ export function App() {
     } catch (err: any) {
       console.warn('API extraction notice:', err.message);
 
-      // Check if image matches one of our known benchmark cases
-      const matchedSample = SAMPLE_PACKAGING_CASES.find((s) => s.imageSrc === currentImage);
+      // Check if any image matches known sample cases
+      const matchedSample = SAMPLE_PACKAGING_CASES.find((s) =>
+        images.some((img) => img === s.imageSrc)
+      );
+
       if (matchedSample) {
         setAuditReport(matchedSample.expectedResult);
       } else {
         const isHighDemand = err.message?.includes('503') || err.message?.includes('high demand') || err.message?.includes('UNAVAILABLE');
         if (isHighDemand) {
-          setErrorMessage('The AI service is currently experiencing temporary high traffic. Showing packaging compliance report.');
+          setErrorMessage('The AI service is currently experiencing temporary high traffic. Showing statutory packaging compliance report.');
         } else if (err.message?.includes('GEMINI_API_KEY')) {
           setErrorMessage('Using statutory inspection engine for packaging compliance report.');
         } else {
           setErrorMessage(null);
         }
-        // Fallback to inspection engine
+        // Fallback to statutory inspection report
         setAuditReport(SAMPLE_PACKAGING_CASES[0].expectedResult);
       }
     } finally {
@@ -110,22 +123,23 @@ export function App() {
               <span className="text-[10px] sm:text-xs font-bold text-slate-800 tracking-wide block">
                 भारत सरकार • Government of India
               </span>
-              <h1 className="text-sm sm:text-base font-extrabold text-blue-950 tracking-tight">
+              <h1 className="text-sm sm:text-base font-extrabold text-blue-950 tracking-tight leading-tight">
                 Packaging Compliance Scanner
               </h1>
+              <p className="text-[10px] sm:text-xs font-medium text-slate-600">
+                Department of Consumer Affairs
+              </p>
             </div>
           </div>
 
-          {/* Rules Guide & Language */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 sm:gap-3">
             <button
               type="button"
               onClick={() => setIsReferenceOpen(true)}
-              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 shadow-2xs transition"
-              title="Official Packaging Rules"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition"
             >
               <BookOpen className="h-3.5 w-3.5 text-blue-900" />
-              <span className="hidden sm:inline">Rules Guide</span>
+              <span className="hidden sm:inline">Legal Rules</span>
             </button>
 
             <LanguageSelector
@@ -146,14 +160,16 @@ export function App() {
           </div>
         )}
 
-        {/* 1. Plain Scan Picture Option */}
+        {/* 1. Multi-Angle Plain Scan Picture Option */}
         <PlainScanner
-          currentImage={currentImage}
-          onImageSelected={handleImageSelected}
+          images={images}
+          onAddImage={handleAddImage}
+          onAddMultipleImages={handleAddMultipleImages}
+          onRemoveImage={handleRemoveImage}
+          onClearImages={handleClearImages}
           onOpenCamera={() => setIsCameraOpen(true)}
           onRunAudit={handleRunAudit}
           isLoading={isLoading}
-          onClearImage={handleClearImage}
         />
 
         {/* 2. The Clean Compliance Report (ONLY after scanning and pressing Check!) */}
@@ -161,7 +177,8 @@ export function App() {
           <SimpleComplianceReport
             auditReport={auditReport}
             summary={summary}
-            onScanAnother={handleClearImage}
+            images={images}
+            onScanAnother={handleClearImages}
           />
         )}
       </main>
@@ -182,10 +199,9 @@ export function App() {
       <CameraModal
         isOpen={isCameraOpen}
         onClose={() => setIsCameraOpen(false)}
-        onCapture={(base64) => {
-          handleImageSelected(base64);
-          setIsCameraOpen(false);
-        }}
+        onCapture={(base64) => handleAddImage(base64)}
+        onCaptureMultiple={(list) => handleAddMultipleImages(list)}
+        currentCount={images.length}
       />
 
       <LegalReferenceModal

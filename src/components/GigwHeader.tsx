@@ -13,6 +13,7 @@ import {
   Shield,
 } from 'lucide-react';
 import { OfficerRole, GigwAccessibilitySettings } from '../types';
+import { PWAInstallButton } from './PWAInstallButton';
 
 interface GigwHeaderProps {
   currentRole: OfficerRole;
@@ -252,6 +253,9 @@ export const GigwHeader: React.FC<GigwHeaderProps> = ({
               </>
             )}
           </button>
+
+          {/* PWA Install Button */}
+          <PWAInstallButton />
 
           {/* Reset / New Scan button */}
           {hasActiveReport && (

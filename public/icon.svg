@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a" />
+      <stop offset="50%" stop-color="#1e293b" />
+      <stop offset="100%" stop-color="#0f2942" />
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fbbf24" />
+      <stop offset="100%" stop-color="#d97706" />
+    </linearGradient>
+    <linearGradient id="emeraldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#34d399" />
+      <stop offset="100%" stop-color="#059669" />
+    </linearGradient>
+  </defs>
+
+  <!-- Background Rounded Canvas -->
+  <rect width="512" height="512" rx="112" fill="url(#bgGrad)" />
+
+  <!-- Tricolor Accent Top Stripe -->
+  <path d="M 120 48 L 392 48" stroke="#FF9933" stroke-width="6" stroke-linecap="round" />
+  <path d="M 160 58 L 352 58" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round" opacity="0.9" />
+  <path d="M 200 66 L 312 66" stroke="#138808" stroke-width="4" stroke-linecap="round" />
+
+  <!-- Outer Scanner Frame Corners -->
+  <path d="M 112 176 L 112 136 Q 112 112 136 112 L 176 112" fill="none" stroke="url(#goldGrad)" stroke-width="12" stroke-linecap="round" />
+  <path d="M 400 176 L 400 136 Q 400 112 376 112 L 336 112" fill="none" stroke="url(#goldGrad)" stroke-width="12" stroke-linecap="round" />
+  <path d="M 112 336 L 112 376 Q 112 400 136 400 L 176 400" fill="none" stroke="url(#goldGrad)" stroke-width="12" stroke-linecap="round" />
+  <path d="M 400 336 L 400 376 Q 400 400 376 400 L 336 400" fill="none" stroke="url(#goldGrad)" stroke-width="12" stroke-linecap="round" />
+
+  <!-- Inner Package Box Silhouette -->
+  <rect x="160" y="160" width="192" height="192" rx="24" fill="#1e293b" stroke="#475569" stroke-width="4" />
+
+  <!-- Legal Metrology Scale Balance -->
+  <path d="M 256 192 L 256 288" stroke="url(#goldGrad)" stroke-width="8" stroke-linecap="round" />
+  <path d="M 208 212 L 304 212" stroke="url(#goldGrad)" stroke-width="6" stroke-linecap="round" />
+  <path d="M 208 212 L 188 256 L 228 256 Z" fill="url(#goldGrad)" opacity="0.9" />
+  <path d="M 304 212 L 284 256 L 324 256 Z" fill="url(#goldGrad)" opacity="0.9" />
+
+  <!-- Scanner Laser Line -->
+  <line x1="128" y1="256" x2="384" y2="256" stroke="#38bdf8" stroke-width="5" stroke-dasharray="8 6" opacity="0.85" />
+
+  <!-- Verified Check Badge -->
+  <circle cx="340" cy="340" r="38" fill="#065f46" stroke="#34d399" stroke-width="5" />
+  <path d="M 326 340 L 336 350 L 356 330" fill="none" stroke="#ffffff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" />
+
+  <!-- Bottom App Label Sub-mark -->
+  <text x="256" y="446" text-anchor="middle" fill="#94a3b8" font-family="system-ui, -apple-system, sans-serif" font-size="28" font-weight="700" letter-spacing="4">LEGAL METROLOGY</text>
+</svg>

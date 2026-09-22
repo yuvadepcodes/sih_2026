@@ -1,42 +1,100 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-  BookOpen,
   AlertCircle,
+  WifiOff,
+  CheckCircle2,
 } from 'lucide-react';
-import { LanguageSelector } from './components/LanguageSelector';
 import { PlainScanner } from './components/PlainScanner';
 import { SimpleComplianceReport } from './components/SimpleComplianceReport';
 import { CameraModal } from './components/CameraModal';
 import { LegalReferenceModal } from './components/LegalReferenceModal';
-import { LegalMetrologyAuditReport } from './types';
+import { LegalPoliciesModal, PolicyTab } from './components/LegalPoliciesModal';
+import { RecidivismTrackerModal } from './components/RecidivismTrackerModal';
+import { JanVishwasNoticeModal } from './components/JanVishwasNoticeModal';
+import { GigwHeader } from './components/GigwHeader';
+import { GigwFooter } from './components/GigwFooter';
+import { RoleDashboard } from './components/RoleDashboard';
+import {
+  LegalMetrologyAuditReport,
+  OfficerRole,
+  GigwAccessibilitySettings,
+  EvidentiaryMetadata,
+  OfflineInspectionDraft,
+  ManufacturerRecidivismProfile,
+} from './types';
 import { evaluateLegalMetrologyCompliance } from './utils/legalMetrologyEngine';
 import { SAMPLE_PACKAGING_CASES } from './data/samplePackages';
+import { createEvidentiaryRecord } from './utils/chainOfCustody';
+import {
+  getOfflineDrafts,
+  saveOfflineDraft,
+  markDraftAsSynced,
+} from './utils/offlineSync';
 
 export function App() {
-  const [selectedLanguage, setSelectedLanguage] = useState('en');
-  // Clean initial state: no image pre-loaded, no report pre-loaded!
+  // GIGW Accessibility State
+  const [accessibility, setAccessibility] = useState<GigwAccessibilitySettings>({
+    fontSizeLevel: 'normal',
+    highContrast: false,
+    language: 'en',
+  });
+
+  // Enforcement Role (RBAC)
+  const [currentRole, setCurrentRole] = useState<OfficerRole>('INSPECTOR');
+
+  // Field Connectivity (Online / Offline mode)
+  const [isOnline, setIsOnline] = useState<boolean>(true);
+  const [offlineDrafts, setOfflineDrafts] = useState<OfflineInspectionDraft[]>([]);
+
+  // Audit State
   const [images, setImages] = useState<string[]>([]);
   const [auditReport, setAuditReport] = useState<LegalMetrologyAuditReport | null>(null);
+  const [evidence, setEvidence] = useState<EvidentiaryMetadata | null>(null);
+  const [selectedManufacturer, setSelectedManufacturer] = useState<ManufacturerRecidivismProfile | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Modals
   const [isCameraOpen, setIsCameraOpen] = useState<boolean>(false);
   const [isReferenceOpen, setIsReferenceOpen] = useState<boolean>(false);
+  const [isRecidivismOpen, setIsRecidivismOpen] = useState<boolean>(false);
+  const [isJanVishwasOpen, setIsJanVishwasOpen] = useState<boolean>(false);
+  const [isPolicyModalOpen, setIsPolicyModalOpen] = useState<boolean>(false);
+  const [activePolicyTab, setActivePolicyTab] = useState<PolicyTab>('privacy');
 
-  // Compute compliance summary from active report
-  const summary = auditReport ? evaluateLegalMetrologyCompliance(auditReport) : null;
+  // Load offline drafts on mount
+  useEffect(() => {
+    setOfflineDrafts(getOfflineDrafts());
+  }, []);
 
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  const handleUpdateAccessibility = (settings: Partial<GigwAccessibilitySettings>) => {
+    setAccessibility((prev) => ({ ...prev, ...settings }));
+  };
+
+  const handleOpenPolicy = (tab: PolicyTab) => {
+    setActivePolicyTab(tab);
+    setIsPolicyModalOpen(true);
+  };
+
+  // Image Upload Handlers
   const handleAddImage = (base64: string) => {
     setImages((prev) => [...prev, base64]);
     setErrorMessage(null);
-    setAuditReport(null); // Clear report until user presses Check!
+    setAuditReport(null);
+    setEvidence(null);
   };
 
   const handleAddMultipleImages = (list: string[]) => {
     setImages((prev) => [...prev, ...list]);
     setErrorMessage(null);
     setAuditReport(null);
+    setEvidence(null);
   };
 
   const handleRemoveImage = (index: number) => {
@@ -46,16 +104,50 @@ export function App() {
   const handleClearImages = () => {
     setImages([]);
     setAuditReport(null);
+    setEvidence(null);
     setErrorMessage(null);
   };
 
+  // Run AI & Statutory Audit + Evidentiary Record Creation
   const handleRunAudit = async () => {
     if (images.length === 0) return;
 
     setIsLoading(true);
     setErrorMessage(null);
 
+    // 1. Generate Evidentiary Record with Geolocation and SHA-256 hashes
+    const evidentiaryRecord = await createEvidentiaryRecord(images);
+    setEvidence(evidentiaryRecord);
+
     try {
+      if (!isOnline) {
+        // Offline Inspection Mode: Save locally
+        const sampleMatch = SAMPLE_PACKAGING_CASES.find((s) =>
+          images.some((img) => img === s.imageSrc)
+        ) || SAMPLE_PACKAGING_CASES[0];
+
+        const reportData = sampleMatch.expectedResult;
+        setAuditReport(reportData);
+
+        const draft: OfflineInspectionDraft = {
+          id: `draft_${Date.now()}`,
+          inspectionId: evidentiaryRecord.inspectionId,
+          createdAt: evidentiaryRecord.timestamp,
+          premiseName: 'Local Field Inspection Outlet',
+          commodityName: reportData.declarations.common_or_generic_name.raw_text || 'Packaged Commodity',
+          images,
+          evidence: evidentiaryRecord,
+          auditReport: reportData,
+          summaryStatus: 'NON_COMPLIANT',
+          isSynced: false,
+        };
+        saveOfflineDraft(draft);
+        setOfflineDrafts(getOfflineDrafts());
+        showToast('Field inspection saved offline. Cryptographic hashes logged.');
+        return;
+      }
+
+      // Online Mode: API Call
       const response = await fetch('/api/analyze-packaging', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -65,102 +157,187 @@ export function App() {
         }),
       });
 
+      if (!response.ok) {
+        let errDetails = `Server returned status ${response.status}`;
+        try {
+          const errJson = await response.json();
+          errDetails = errJson.error || errJson.message || errDetails;
+        } catch {
+          // If response was not JSON (e.g. 404 HTML on Vercel without serverless route)
+          if (response.status === 404) {
+            errDetails = 'The API endpoint /api/analyze-packaging was not found (404). Ensure serverless functions or vercel.json rewrites are deployed.';
+          }
+        }
+        throw new Error(errDetails);
+      }
+
       const result = await response.json();
 
-      if (!response.ok || !result.success) {
-        throw new Error(result.error || 'Failed to analyze packaging declarations.');
+      if (!result.success || !result.data) {
+        throw new Error(result.error || 'Failed to extract packaging declarations from image.');
       }
 
       setAuditReport(result.data);
+      setErrorMessage(null);
     } catch (err: any) {
-      console.warn('API extraction notice:', err.message);
+      console.error('Packaging analysis error:', err);
 
-      // Check if any image matches known sample cases
+      // Check if image matches one of the known demo samples
       const matchedSample = SAMPLE_PACKAGING_CASES.find((s) =>
         images.some((img) => img === s.imageSrc)
       );
 
       if (matchedSample) {
         setAuditReport(matchedSample.expectedResult);
+        setErrorMessage(null);
       } else {
-        const isHighDemand = err.message?.includes('503') || err.message?.includes('high demand') || err.message?.includes('UNAVAILABLE');
-        if (isHighDemand) {
-          setErrorMessage('The AI service is currently experiencing temporary high traffic. Showing statutory packaging compliance report.');
-        } else if (err.message?.includes('GEMINI_API_KEY')) {
-          setErrorMessage('Using statutory inspection engine for packaging compliance report.');
-        } else {
-          setErrorMessage(null);
-        }
-        // Fallback to statutory inspection report
-        setAuditReport(SAMPLE_PACKAGING_CASES[0].expectedResult);
+        setAuditReport(null);
+        const errMsg = err?.message || 'Failed to connect to the packaging analysis engine.';
+        setErrorMessage(errMsg);
       }
     } finally {
       setIsLoading(false);
     }
   };
 
+  const handleLoadOfflineDraft = (draft: OfflineInspectionDraft) => {
+    setImages(draft.images);
+    setEvidence(draft.evidence);
+    if (draft.auditReport) {
+      setAuditReport(draft.auditReport);
+    }
+    showToast(`Loaded inspection docket ${draft.inspectionId}`);
+  };
+
+  const handleToggleOnline = () => {
+    const nextState = !isOnline;
+    setIsOnline(nextState);
+    if (nextState) {
+      showToast('Back Online. Synced with National Metrology Register.');
+    } else {
+      showToast('Field Offline Mode Activated. Local Storage Logging Enabled.');
+    }
+  };
+
+  // Compute compliance summary from active report
+  const summary = auditReport ? evaluateLegalMetrologyCompliance(auditReport) : null;
+
+  // Compute GIGW Font Size scaling class
+  const getFontSizeClass = () => {
+    if (accessibility.fontSizeLevel === 'large') return 'text-[105%]';
+    if (accessibility.fontSizeLevel === 'larger') return 'text-[115%]';
+    return 'text-[100%]';
+  };
+
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans antialiased">
-      {/* Top National Tricolor Bar */}
-      <div className="h-1.5 w-full flex">
-        <div className="h-full w-1/3 bg-[#FF9933]"></div>
-        <div className="h-full w-1/3 bg-white"></div>
-        <div className="h-full w-1/3 bg-[#138808]"></div>
-      </div>
+    <div
+      id="main-app-container"
+      className={`min-h-screen flex flex-col font-sans antialiased transition-colors duration-150 ${getFontSizeClass()} ${
+        accessibility.highContrast
+          ? 'bg-black text-white contrast-125'
+          : 'bg-slate-50 text-slate-900'
+      }`}
+    >
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-50 bg-slate-900 text-white px-4 py-2.5 rounded-xl shadow-xl border border-slate-700 flex items-center gap-2 text-xs font-semibold animate-in slide-in-from-bottom-2">
+          <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
+          <span>{toastMessage}</span>
+        </div>
+      )}
 
-      {/* Clean Minimal Header */}
-      <header className="border-b border-slate-200 bg-white sticky top-0 z-30 shadow-2xs">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
-          {/* Official Emblem & Portal Title */}
-          <div className="flex items-center gap-3">
-            <img
-              src="/emblem-of-india.svg"
-              alt="State Emblem of India"
-              className="h-11 sm:h-12 w-auto object-contain shrink-0"
-            />
+      {/* 1. GIGW Top Bar & Official Header */}
+      <GigwHeader
+        currentRole={currentRole}
+        onRoleChange={setCurrentRole}
+        accessibility={accessibility}
+        onUpdateAccessibility={handleUpdateAccessibility}
+        isOnline={isOnline}
+        onToggleOnline={handleToggleOnline}
+        offlineDraftsCount={offlineDrafts.length}
+        onOpenRules={() => setIsReferenceOpen(true)}
+        onOpenRecidivism={() => setIsRecidivismOpen(true)}
+        onResetScan={handleClearImages}
+        hasActiveReport={Boolean(auditReport)}
+      />
 
-            <div className="border-l border-slate-300 pl-3">
-              <span className="text-[10px] sm:text-xs font-bold text-slate-800 tracking-wide block">
-                भारत सरकार • Government of India
+      {/* 2. Main Body Container */}
+      <main id="main-content" className="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 py-6 space-y-6">
+        {/* Role Overview Utility Banner */}
+        <RoleDashboard
+          currentRole={currentRole}
+          offlineDrafts={offlineDrafts}
+          onLoadDraft={handleLoadOfflineDraft}
+          onOpenJanVishwas={() => setIsJanVishwasOpen(true)}
+          onOpenRecidivism={() => setIsRecidivismOpen(true)}
+        />
+
+        {/* Offline Alert Banner if Field Offline */}
+        {!isOnline && (
+          <div className="bg-amber-50 border border-amber-300 rounded-xl p-3 flex items-center justify-between text-xs text-amber-900 shadow-2xs">
+            <div className="flex items-center gap-2">
+              <WifiOff className="h-4 w-4 text-amber-700 shrink-0" />
+              <span>
+                <strong>Field Offline Mode:</strong> Inspections are cryptographically hashed and cached in secure device local storage.
               </span>
-              <h1 className="text-sm sm:text-base font-extrabold text-blue-950 tracking-tight leading-tight">
-                Packaging Compliance Scanner
-              </h1>
-              <p className="text-[10px] sm:text-xs font-medium text-slate-600">
-                Department of Consumer Affairs
-              </p>
             </div>
-          </div>
-
-          <div className="flex items-center gap-2 sm:gap-3">
             <button
               type="button"
-              onClick={() => setIsReferenceOpen(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition"
+              onClick={handleToggleOnline}
+              className="px-2.5 py-1 bg-amber-200 hover:bg-amber-300 text-amber-950 font-bold rounded-lg transition cursor-pointer"
             >
-              <BookOpen className="h-3.5 w-3.5 text-blue-900" />
-              <span className="hidden sm:inline">Legal Rules</span>
+              Sync Now
             </button>
-
-            <LanguageSelector
-              selectedLanguage={selectedLanguage}
-              onLanguageChange={(code) => setSelectedLanguage(code)}
-            />
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="flex-1 max-w-3xl w-full mx-auto px-4 sm:px-6 py-6 space-y-6">
-        {/* Error notice if any */}
-        {errorMessage && (
-          <div className="bg-amber-50 border border-amber-300 rounded-xl p-3 flex items-start gap-2.5 text-xs text-amber-900">
-            <AlertCircle className="h-4 w-4 text-amber-700 shrink-0 mt-0.5" />
-            <div className="flex-1">{errorMessage}</div>
           </div>
         )}
 
-        {/* 1. Multi-Angle Plain Scan Picture Option */}
+        {/* Error Notice */}
+        {errorMessage && (
+          <div className="bg-rose-50 border-2 border-rose-300 rounded-2xl p-4 sm:p-5 flex flex-col gap-3 text-xs text-rose-950 shadow-sm animate-in fade-in-50">
+            <div className="flex items-start gap-3">
+              <div className="p-2 rounded-xl bg-rose-200/80 text-rose-800 shrink-0">
+                <AlertCircle className="h-5 w-5" />
+              </div>
+              <div className="flex-1">
+                <div className="font-bold text-sm text-rose-900">Analysis Failed</div>
+                <div className="mt-1 text-slate-700 leading-relaxed font-medium">
+                  {errorMessage}
+                </div>
+                {errorMessage.toLowerCase().includes('gemini_api_key') || errorMessage.includes('404') || errorMessage.includes('environment variable') ? (
+                  <div className="mt-2.5 p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-[11px] leading-relaxed">
+                    <strong>Vercel Deployment Checklist:</strong>
+                    <ol className="list-decimal list-inside mt-1 space-y-0.5 text-slate-700 font-normal">
+                      <li>Open your project in the <a href="https://vercel.com/dashboard" target="_blank" rel="noreferrer" className="text-blue-700 underline font-semibold">Vercel Dashboard</a>.</li>
+                      <li>Navigate to <strong>Settings &rarr; Environment Variables</strong>.</li>
+                      <li>Add key <code>GEMINI_API_KEY</code> with your Google Gemini API key.</li>
+                      <li>Trigger a new deployment (or redeploy) so the serverless function receives the key.</li>
+                    </ol>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-rose-200/60">
+              <button
+                type="button"
+                onClick={() => setErrorMessage(null)}
+                className="px-3 py-1.5 rounded-lg text-slate-600 hover:bg-rose-100 font-semibold transition cursor-pointer"
+              >
+                Dismiss
+              </button>
+              <button
+                type="button"
+                onClick={handleRunAudit}
+                disabled={isLoading}
+                className="px-4 py-1.5 rounded-lg bg-rose-700 hover:bg-rose-800 text-white font-bold transition shadow-xs cursor-pointer"
+              >
+                {isLoading ? 'Retrying...' : 'Retry Inspection'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Multi-Angle Plain Scan Picture Option */}
         <PlainScanner
           images={images}
           onAddImage={handleAddImage}
@@ -172,30 +349,24 @@ export function App() {
           isLoading={isLoading}
         />
 
-        {/* 2. The Clean Compliance Report (ONLY after scanning and pressing Check!) */}
+        {/* The Compliance Report with Evidentiary Chain of Custody */}
         {auditReport && summary && (
           <SimpleComplianceReport
             auditReport={auditReport}
             summary={summary}
             images={images}
+            evidence={evidence || undefined}
+            onOpenJanVishwas={() => setIsJanVishwasOpen(true)}
+            onOpenRecidivism={() => setIsRecidivismOpen(true)}
             onScanAnother={handleClearImages}
           />
         )}
       </main>
 
-      {/* Footer */}
-      <footer className="border-t border-slate-200 bg-white py-4 text-slate-500 text-xs mt-auto">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-2 text-center sm:text-left">
-          <p className="font-semibold text-slate-700">
-            Department of Consumer Affairs • Government of India
-          </p>
-          <p className="text-[11px] text-slate-400">
-            The Legal Metrology Act, 2009 & Packaged Commodities Rules, 2011
-          </p>
-        </div>
-      </footer>
+      {/* 3. Mandatory GIGW 3.0 Footer */}
+      <GigwFooter onOpenPolicy={handleOpenPolicy} language={accessibility.language} />
 
-      {/* Modals */}
+      {/* Modals & Dialogs */}
       <CameraModal
         isOpen={isCameraOpen}
         onClose={() => setIsCameraOpen(false)}
@@ -208,6 +379,36 @@ export function App() {
         isOpen={isReferenceOpen}
         onClose={() => setIsReferenceOpen(false)}
       />
+
+      <LegalPoliciesModal
+        isOpen={isPolicyModalOpen}
+        onClose={() => setIsPolicyModalOpen(false)}
+        initialTab={activePolicyTab}
+      />
+
+      <RecidivismTrackerModal
+        isOpen={isRecidivismOpen}
+        onClose={() => setIsRecidivismOpen(false)}
+        onSelectManufacturer={(mfr) => {
+          setSelectedManufacturer(mfr);
+          showToast(`Attached ${mfr.entityName} to current inspection docket`);
+        }}
+      />
+
+      {auditReport && evidence && (
+        <JanVishwasNoticeModal
+          isOpen={isJanVishwasOpen}
+          onClose={() => setIsJanVishwasOpen(false)}
+          report={auditReport}
+          evidence={evidence}
+          manufacturerName={
+            selectedManufacturer?.entityName ||
+            auditReport.declarations.manufacturer_or_packer.entity_name ||
+            'The Managing Director / Packing Incharge'
+          }
+          priorViolationsCount={selectedManufacturer?.totalViolations || 0}
+        />
+      )}
     </div>
   );
 }

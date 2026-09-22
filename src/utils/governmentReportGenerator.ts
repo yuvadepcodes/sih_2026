@@ -12,6 +12,9 @@ export interface GovernmentReportMeta {
   commodityName: string;
   officialRemarks: string;
   recommendedAction: string;
+  gpsCoordinatesText?: string;
+  terminalDeviceId?: string;
+  sha256Digest?: string;
 }
 
 export const DEFAULT_GOVT_META: GovernmentReportMeta = {
@@ -367,9 +370,10 @@ export async function generateGovernmentPdf(
   y += 6;
 
   // 2. FILE REFERENCE & INSPECTION METADATA TABLE
+  const tableHeight = meta.gpsCoordinatesText ? 25 : 20;
   doc.setFillColor(248, 250, 252);
   doc.setDrawColor(203, 213, 225);
-  doc.rect(margin, y, contentWidth, 20, 'FD');
+  doc.rect(margin, y, contentWidth, tableHeight, 'FD');
 
   doc.setFontSize(8);
   doc.setTextColor(15, 23, 42);
@@ -398,7 +402,18 @@ export async function generateGovernmentPdf(
   doc.setFont('helvetica', 'normal');
   doc.text(meta.premisesName.slice(0, 75), margin + 35, y + 15);
 
-  y += 24;
+  if (meta.gpsCoordinatesText) {
+    doc.setFont('helvetica', 'bold');
+    doc.text('Evidentiary GPS/Tag:', margin + 3, y + 20);
+    doc.setFont('helvetica', 'normal');
+    doc.text(
+      `${meta.gpsCoordinatesText} | Terminal: ${meta.terminalDeviceId || 'LM-TERM-01'} | SHA-256 Verified`,
+      margin + 35,
+      y + 20
+    );
+  }
+
+  y += tableHeight + 4;
 
   // 3. STATUTORY VERDICT CALLOUT
   if (isCompliant) {

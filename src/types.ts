@@ -117,6 +117,79 @@ export interface StatutoryRuleCheck {
   legalActSection?: string;
 }
 
+export interface EvidentiaryMetadata {
+  inspectionId: string; // e.g. LM-2026-DL-0941
+  timestamp: string; // ISO String
+  formattedDateTimeIST: string;
+  gpsCoordinates: {
+    latitude: number;
+    longitude: number;
+    accuracyMeters: number;
+    districtZone: string;
+  } | null;
+  deviceId: string; // Inspector Terminal ID e.g. LM-TAB-DL-402
+  imageHashes: { [imageIndex: number]: string }; // SHA-256 hash per photo
+  chainOfCustodyVerified: boolean;
+  syncedToNationalRegister: boolean;
+}
+
+export type OfficerRole = 'INSPECTOR' | 'ADJUDICATING_OFFICER' | 'DIRECTOR';
+
+export type JanVishwasOffenseTier = 'FIRST_OFFENSE' | 'SECOND_OFFENSE' | 'REPEAT_OFFENSE';
+
+export interface JanVishwasPenaltyCalculation {
+  tier: JanVishwasOffenseTier;
+  violationCount: number;
+  statutoryNoticeType: 'IMPROVEMENT_NOTICE_SEC_36_1' | 'COMPOUNDED_CIVIL_PENALTY' | 'PROSECUTION_REFERRAL';
+  prescribedPenaltyInr: number;
+  complianceWindowDays: number;
+  statutoryClause: string;
+  isJanVishwasDecriminalized: boolean;
+  notes: string;
+}
+
+export interface ManufacturerRecidivismProfile {
+  id: string;
+  entityName: string;
+  registrationNumber: string;
+  state: string;
+  totalInspections: number;
+  totalViolations: number;
+  riskRating: 'LOW' | 'MEDIUM' | 'CRITICAL_REPEAT_OFFENDER';
+  lastInspectionDate: string;
+  activeNotices: number;
+  compoundedFeesPaidInr: number;
+  violationHistory: {
+    inspectionId: string;
+    date: string;
+    productName: string;
+    violations: string[];
+    actionTaken: string;
+    penaltyInr: number;
+    status: 'RESOLVED' | 'PENDING_REPLY' | 'HEARING_SCHEDULED' | 'ESCALATED';
+  }[];
+}
+
+export interface OfflineInspectionDraft {
+  id: string;
+  inspectionId: string;
+  createdAt: string;
+  premiseName: string;
+  commodityName: string;
+  images: string[];
+  evidence: EvidentiaryMetadata;
+  auditReport?: LegalMetrologyAuditReport;
+  summaryStatus?: 'COMPLIANT' | 'NON_COMPLIANT';
+  violationsCount?: number;
+  isSynced: boolean;
+}
+
+export interface GigwAccessibilitySettings {
+  fontSizeLevel: 'normal' | 'large' | 'larger'; // 100%, 110%, 120%
+  highContrast: boolean;
+  language: 'en' | 'hi';
+}
+
 export interface SamplePackagingItem {
   id: string;
   title: string;

@@ -18,7 +18,7 @@ import {
   Download,
   FileCode,
 } from 'lucide-react';
-import { LegalMetrologyAuditReport } from '../types';
+import { LegalMetrologyAuditReport, EvidentiaryMetadata } from '../types';
 import {
   InspectionSummary,
   SearchableDeclarationItem,
@@ -30,11 +30,16 @@ import {
   generateGovernmentWordDoc,
 } from '../utils/governmentReportGenerator';
 import { EditGovernmentReportModal } from './EditGovernmentReportModal';
+import { EvidentiaryChainBanner } from './EvidentiaryChainBanner';
+import { Scale, Building } from 'lucide-react';
 
 interface SimpleComplianceReportProps {
   auditReport: LegalMetrologyAuditReport;
   summary: InspectionSummary;
   images: string[];
+  evidence?: EvidentiaryMetadata;
+  onOpenJanVishwas?: () => void;
+  onOpenRecidivism?: () => void;
   onScanAnother: () => void;
 }
 
@@ -42,6 +47,9 @@ export const SimpleComplianceReport: React.FC<SimpleComplianceReportProps> = ({
   auditReport,
   summary,
   images,
+  evidence,
+  onOpenJanVishwas,
+  onOpenRecidivism,
   onScanAnother,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -53,8 +61,14 @@ export const SimpleComplianceReport: React.FC<SimpleComplianceReportProps> = ({
     const entity = auditReport.declarations.manufacturer_or_packer.entity_name || 'Retail & Pre-Packaging Establishment';
     return {
       ...DEFAULT_GOVT_META,
+      fileNumber: evidence?.inspectionId || DEFAULT_GOVT_META.fileNumber,
       commodityName: genericName,
       premisesName: entity,
+      gpsCoordinatesText: evidence?.gpsCoordinates
+        ? `${evidence.gpsCoordinates.latitude}° N, ${evidence.gpsCoordinates.longitude}° E (${evidence.gpsCoordinates.districtZone})`
+        : undefined,
+      terminalDeviceId: evidence?.deviceId,
+      sha256Digest: evidence?.imageHashes ? Object.values(evidence.imageHashes)[0] : undefined,
     };
   });
 
@@ -162,6 +176,9 @@ export const SimpleComplianceReport: React.FC<SimpleComplianceReportProps> = ({
         </div>
       </div>
 
+      {/* Evidentiary Chain of Custody & Geotag Banner */}
+      {evidence && <EvidentiaryChainBanner evidence={evidence} />}
+
       {/* 1. Main Verdict Banner (Is it completely compliance?) */}
       <div
         className={`rounded-2xl p-5 sm:p-6 border-2 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition ${
@@ -183,13 +200,18 @@ export const SimpleComplianceReport: React.FC<SimpleComplianceReportProps> = ({
             )}
           </div>
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="text-[11px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded bg-white/70 border border-current">
                 Statutory Compliance Verdict
               </span>
               <span className="text-xs font-semibold text-slate-600">
                 Score: {summary.complianceScore}%
               </span>
+              {!isCompliant && (
+                <span className="text-[10px] font-bold text-amber-900 bg-amber-100 px-2 py-0.5 rounded border border-amber-200">
+                  Jan Vishwas Eligible (Sec 36(1))
+                </span>
+              )}
             </div>
             <div className="text-xl sm:text-2xl font-black tracking-tight mt-1">
               {isCompliant ? 'YES — Completely Compliant' : 'NO — Not Compliant'}
@@ -202,8 +224,32 @@ export const SimpleComplianceReport: React.FC<SimpleComplianceReportProps> = ({
           </div>
         </div>
 
-        {/* Action Controls: PDF, Editable Formats, Print */}
+        {/* Action Controls: Jan Vishwas Notice, PDF, Editable Formats, Print */}
         <div className="flex flex-wrap items-center gap-2 self-end sm:self-center shrink-0 print:hidden">
+          {!isCompliant && onOpenJanVishwas && (
+            <button
+              type="button"
+              onClick={onOpenJanVishwas}
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-white bg-amber-900 hover:bg-amber-800 rounded-xl shadow-xs transition cursor-pointer"
+              title="Issue Formal Section 36(1) Notice under Jan Vishwas Act"
+            >
+              <Scale className="h-3.5 w-3.5 text-amber-300" />
+              <span>Section 36(1) Notice</span>
+            </button>
+          )}
+
+          {onOpenRecidivism && (
+            <button
+              type="button"
+              onClick={onOpenRecidivism}
+              className="inline-flex items-center gap-1.5 px-2.5 py-2 text-xs font-bold text-slate-800 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-xl transition cursor-pointer"
+              title="Look up repeat offenses in National Recidivism Registry"
+            >
+              <Building className="h-3.5 w-3.5 text-blue-900" />
+              <span className="hidden sm:inline">Check Recidivism</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={() => setIsEditModalOpen(true)}

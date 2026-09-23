@@ -141,6 +141,11 @@ export function getSearchableDeclarations(report: LegalMetrologyAuditReport): Se
   });
 
   // 4. Net Quantity
+  const rawUnit = (d.net_quantity.declared_unit || '').trim();
+  const isDeclaredSI = VALID_SI_UNITS.includes(rawUnit) || 
+                       VALID_SI_UNITS.includes(rawUnit.toLowerCase()) || 
+                       (d.net_quantity.is_standard_si_unit && !FORBIDDEN_UNIT_SYMBOLS.includes(rawUnit.toLowerCase()));
+
   items.push({
     id: 'net_qty',
     title: 'Net Quantity & SI Metric Units',
@@ -148,7 +153,7 @@ export function getSearchableDeclarations(report: LegalMetrologyAuditReport): Se
     value: `${d.net_quantity.numeric_value || ''} ${d.net_quantity.declared_unit || ''}`.trim() || 'Not declared',
     rawText: d.net_quantity.raw_text,
     ruleCitation: 'Rule 6(1)(c) & Rule 12',
-    status: d.net_quantity.found && d.net_quantity.is_standard_si_unit ? 'COMPLIANT' : 'VIOLATION',
+    status: d.net_quantity.found && isDeclaredSI ? 'COMPLIANT' : 'VIOLATION',
     category: 'Net Quantity',
   });
 
@@ -370,17 +375,12 @@ export function evaluateLegalMetrologyCompliance(
     });
   } else {
     const rawUnit = (d.net_quantity.declared_unit || '').trim();
-    const rawText = (d.net_quantity.raw_text || '').toLowerCase();
-    
-    // Check for explicit forbidden abbreviations
-    const isDeclaredForbidden = FORBIDDEN_UNIT_SYMBOLS.includes(rawUnit.toLowerCase());
-    const hasForbiddenText = /\b(gms|kilo|kilos|ltrs|nos|pcs)\b/i.test(rawText) ||
-                             /\b\d+\s*(gm|gms|ltrs|nos|pcs)\b/i.test(rawText);
+    const isDeclaredExplicitlyForbidden = FORBIDDEN_UNIT_SYMBOLS.includes(rawUnit.toLowerCase());
+    const isRecognizedSI = VALID_SI_UNITS.includes(rawUnit) || 
+                           VALID_SI_UNITS.includes(rawUnit.toLowerCase()) || 
+                           (d.net_quantity.is_standard_si_unit && !isDeclaredExplicitlyForbidden);
 
-    const hasForbiddenUnit = isDeclaredForbidden || hasForbiddenText;
-    const isSI = !hasForbiddenUnit && (VALID_SI_UNITS.includes(rawUnit) || d.net_quantity.is_standard_si_unit);
-
-    if (!isSI || hasForbiddenUnit) {
+    if (isDeclaredExplicitlyForbidden || !isRecognizedSI) {
       checks.push({
         id: 'rule-6-1-c-si',
         ruleCitation: 'Rule 6(1)(c) & Rule 12, LM(PC) Rules, 2011',
@@ -398,7 +398,7 @@ export function evaluateLegalMetrologyCompliance(
         ruleTitle: '4. Net Quantity & Standard SI Units',
         description: 'Standard unit of weight/measure.',
         status: 'COMPLIANT',
-        finding: `Compliant net quantity: ${d.net_quantity.numeric_value ?? ''} ${rawUnit} (Raw: "${d.net_quantity.raw_text}"). Uses approved SI metric symbol.`,
+        finding: `Compliant net quantity: ${d.net_quantity.numeric_value ?? ''} ${rawUnit || 'g'} (Raw: "${d.net_quantity.raw_text}"). Uses approved SI metric symbol.`,
       });
     }
   }

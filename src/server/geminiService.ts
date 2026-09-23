@@ -188,8 +188,8 @@ export async function analyzePackagingImages(params: {
   const ai = getGeminiClient();
 
   const CANDIDATE_MODELS = [
-    'gemini-flash-latest',
     'gemini-3.1-flash-lite',
+    'gemini-flash-latest',
     'gemini-3.8-flash',
   ];
 

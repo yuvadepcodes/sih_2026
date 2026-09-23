@@ -188,6 +188,7 @@ export async function analyzePackagingImages(params: {
   const ai = getGeminiClient();
 
   const CANDIDATE_MODELS = [
+    'gemini-flash-latest',
     'gemini-3.8-flash',
     'gemini-3.1-flash-lite',
   ];
@@ -214,27 +215,43 @@ You are analyzing ${imageList.length} photo(s) showing different angles and pane
   });
 
   for (const model of CANDIDATE_MODELS) {
-    try {
-      response = await ai.models.generateContent({
-        model,
-        contents: [
-          {
-            role: 'user',
-            parts: contentParts,
+    // Attempt with retries for temporary spikes
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        response = await ai.models.generateContent({
+          model,
+          contents: [
+            {
+              role: 'user',
+              parts: contentParts,
+            },
+          ],
+          config: {
+            responseMimeType: 'application/json',
           },
-        ],
-        config: {
-          responseMimeType: 'application/json',
-        },
-      });
+        });
 
-      if (response && response.text) {
+        if (response && response.text) {
+          break;
+        }
+      } catch (err: any) {
+        lastError = err;
+        const errMsg = err?.message || String(err);
+        console.warn(`Model ${model} (attempt ${attempt + 1}) error:`, errMsg);
+        
+        const isTransient = errMsg.includes('503') || errMsg.includes('UNAVAILABLE') || errMsg.includes('high demand') || errMsg.includes('429') || errMsg.includes('RESOURCE_EXHAUSTED');
+        if (isTransient && attempt === 0) {
+          // Wait 800ms before retrying once on the same model
+          await new Promise((resolve) => setTimeout(resolve, 800));
+          continue;
+        }
+        // Move to next candidate model
         break;
       }
-    } catch (err: any) {
-      lastError = err;
-      console.warn(`Model ${model} error:`, err?.message || err);
-      await new Promise((resolve) => setTimeout(resolve, 300));
+    }
+
+    if (response && response.text) {
+      break;
     }
   }
 

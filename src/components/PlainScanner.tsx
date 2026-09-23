@@ -9,6 +9,7 @@ import {
   Plus,
   Layers,
 } from 'lucide-react';
+import { optimizePackagingImage } from '../utils/imageOptimizer';
 
 interface PlainScannerProps {
   images: string[];
@@ -33,29 +34,24 @@ export const PlainScanner: React.FC<PlainScannerProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const handleFiles = (fileList: FileList) => {
+  const handleFiles = async (fileList: FileList) => {
     const promises: Promise<string>[] = [];
     for (let i = 0; i < fileList.length; i++) {
       const file = fileList[i];
       if (file.type.startsWith('image/')) {
-        promises.push(
-          new Promise((resolve) => {
-            const reader = new FileReader();
-            reader.onload = (e) => {
-              resolve(e.target?.result as string);
-            };
-            reader.readAsDataURL(file);
-          })
-        );
+        promises.push(optimizePackagingImage(file, 1600, 0.85));
       }
     }
 
-    Promise.all(promises).then((results) => {
+    try {
+      const results = await Promise.all(promises);
       const valid = results.filter(Boolean);
       if (valid.length > 0) {
         onAddMultipleImages(valid);
       }
-    });
+    } catch (err) {
+      console.error('File optimization error:', err);
+    }
   };
 
   const onDragOver = (e: React.DragEvent) => {

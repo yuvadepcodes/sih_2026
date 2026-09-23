@@ -25,6 +25,7 @@ import {
 import { evaluateLegalMetrologyCompliance } from './utils/legalMetrologyEngine';
 import { SAMPLE_PACKAGING_CASES } from './data/samplePackages';
 import { createEvidentiaryRecord } from './utils/chainOfCustody';
+import { optimizePackagingImage } from './utils/imageOptimizer';
 import {
   getOfflineDrafts,
   saveOfflineDraft,
@@ -120,6 +121,11 @@ export function App() {
     setEvidence(evidentiaryRecord);
 
     try {
+      // Fast Client-Side Image Pre-Processing (drops payload from 50MB to <1MB)
+      const optimizedImages = await Promise.all(
+        images.map((img) => optimizePackagingImage(img, 1600, 0.85))
+      );
+
       if (!isOnline) {
         // Offline Inspection Mode: Save locally
         const sampleMatch = SAMPLE_PACKAGING_CASES.find((s) =>
@@ -147,15 +153,21 @@ export function App() {
         return;
       }
 
-      // Online Mode: API Call
+      // Online Mode: API Call with timeout controller
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 25000);
+
       const response = await fetch('/api/analyze-packaging', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          images,
+          images: optimizedImages,
           sourceType: 'physical_label_or_listing',
         }),
+        signal: controller.signal,
       });
+
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         let errDetails = `Server returned status ${response.status}`;

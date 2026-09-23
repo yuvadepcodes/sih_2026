@@ -189,8 +189,8 @@ export async function analyzePackagingImages(params: {
 
   const CANDIDATE_MODELS = [
     'gemini-flash-latest',
-    'gemini-3.8-flash',
     'gemini-3.1-flash-lite',
+    'gemini-3.8-flash',
   ];
 
   let response: any = null;
@@ -215,43 +215,27 @@ You are analyzing ${imageList.length} photo(s) showing different angles and pane
   });
 
   for (const model of CANDIDATE_MODELS) {
-    // Attempt with retries for temporary spikes
-    for (let attempt = 0; attempt < 2; attempt++) {
-      try {
-        response = await ai.models.generateContent({
-          model,
-          contents: [
-            {
-              role: 'user',
-              parts: contentParts,
-            },
-          ],
-          config: {
-            responseMimeType: 'application/json',
+    try {
+      response = await ai.models.generateContent({
+        model,
+        contents: [
+          {
+            role: 'user',
+            parts: contentParts,
           },
-        });
+        ],
+        config: {
+          responseMimeType: 'application/json',
+        },
+      });
 
-        if (response && response.text) {
-          break;
-        }
-      } catch (err: any) {
-        lastError = err;
-        const errMsg = err?.message || String(err);
-        console.warn(`Model ${model} (attempt ${attempt + 1}) error:`, errMsg);
-        
-        const isTransient = errMsg.includes('503') || errMsg.includes('UNAVAILABLE') || errMsg.includes('high demand') || errMsg.includes('429') || errMsg.includes('RESOURCE_EXHAUSTED');
-        if (isTransient && attempt === 0) {
-          // Wait 800ms before retrying once on the same model
-          await new Promise((resolve) => setTimeout(resolve, 800));
-          continue;
-        }
-        // Move to next candidate model
+      if (response && response.text) {
         break;
       }
-    }
-
-    if (response && response.text) {
-      break;
+    } catch (err: any) {
+      lastError = err;
+      const errMsg = err?.message || String(err);
+      console.warn(`Model ${model} failed, switching to next candidate:`, errMsg);
     }
   }
 

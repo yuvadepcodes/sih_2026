@@ -111,14 +111,20 @@ export function getSearchableDeclarations(report: LegalMetrologyAuditReport): Se
   });
 
   // 2. Country of Origin
+  const isDomesticIndia = isIndianOriginAddress(d.manufacturer_or_packer.full_address || '') ||
+                          isIndianOriginAddress(d.manufacturer_or_packer.entity_name || '') ||
+                          isIndianOriginAddress(d.manufacturer_or_packer.raw_text || '') ||
+                          isIndianOriginAddress(d.country_of_origin.raw_text || '');
+  const effectiveOrigin = d.country_of_origin.country_name || (isDomesticIndia ? 'India' : null);
+
   items.push({
     id: 'origin',
     title: 'Country of Origin',
     label: 'Origin of Pre-Packaged Commodity',
-    value: d.country_of_origin.country_name || 'Not declared on scanned package',
-    rawText: d.country_of_origin.raw_text,
+    value: effectiveOrigin || 'Not declared on scanned package',
+    rawText: d.country_of_origin.raw_text || (isDomesticIndia ? `Domestic Indian Manufacturer: ${d.manufacturer_or_packer.full_address || d.manufacturer_or_packer.entity_name}` : null),
     ruleCitation: 'Rule 6(1)(aa)',
-    status: d.country_of_origin.found && d.country_of_origin.country_name ? 'COMPLIANT' : 'VIOLATION',
+    status: (d.country_of_origin.found && d.country_of_origin.country_name) || isDomesticIndia ? 'COMPLIANT' : 'VIOLATION',
     category: 'Country of Origin',
   });
 
@@ -197,8 +203,21 @@ export function getSearchableDeclarations(report: LegalMetrologyAuditReport): Se
   return items;
 }
 
-export const VALID_SI_UNITS = ['g', 'kg', 'ml', 'L', 'l', 'cm', 'm', 'cm²', 'm²', 'N', 'U'];
-export const FORBIDDEN_UNIT_SYMBOLS = ['gms', 'gm', 'kilo', 'ltrs', 'ltr', 'nos', 'pcs', 'ml.', 'g.'];
+export const VALID_SI_UNITS = ['g', 'kg', 'mg', 'ml', 'L', 'l', 'cm', 'm', 'mm', 'cm²', 'm²', 'N', 'U'];
+export const FORBIDDEN_UNIT_SYMBOLS = ['gms', 'gm', 'kilo', 'kilos', 'ltrs', 'ltr', 'nos', 'pcs'];
+
+// Helper to check if text contains Indian geography markers
+function isIndianOriginAddress(text: string): boolean {
+  if (!text) return false;
+  const lower = text.toLowerCase();
+  const indianKeywords = [
+    'india', 'bharat', 'delhi', 'mumbai', 'kolkata', 'chennai', 'bengaluru', 'bangalore',
+    'hyderabad', 'pune', 'ahmedabad', 'gujarat', 'maharashtra', 'karnataka', 'tamil nadu',
+    'west bengal', 'uttar pradesh', 'haryana', 'punjab', 'rajasthan', 'kerala', 'telangana',
+    'madhya pradesh', 'bihar', 'odisha', 'assam', 'uttarakhand', 'himachal'
+  ];
+  return indianKeywords.some(kw => new RegExp(`\\b${kw}\\b`, 'i').test(lower)) || /\b\d{6}\b/.test(lower);
+}
 
 export function evaluateLegalMetrologyCompliance(
   report: LegalMetrologyAuditReport
@@ -256,17 +275,33 @@ export function evaluateLegalMetrologyCompliance(
   // =========================================================================
   // 2. COUNTRY OF ORIGIN (Rule 6(1)(aa))
   // =========================================================================
+  const isMfgDomestic = isIndianOriginAddress(d.manufacturer_or_packer.full_address || '') ||
+                        isIndianOriginAddress(d.manufacturer_or_packer.entity_name || '') ||
+                        isIndianOriginAddress(d.manufacturer_or_packer.raw_text || '') ||
+                        isIndianOriginAddress(d.country_of_origin.raw_text || '');
+
   if (!d.country_of_origin.found || !d.country_of_origin.country_name) {
-    checks.push({
-      id: 'rule-6-1-aa',
-      ruleCitation: 'Rule 6(1)(aa), LM(PC) Rules, 2011',
-      ruleTitle: '2. Country of Origin Declaration',
-      description: 'Mandatory declaration stating "Country of Origin: [Country]", "Made in [Country]", or "Manufactured in [Country]".',
-      status: 'VIOLATION',
-      finding: 'Country of origin is missing or ambiguous on the package/listing.',
-      legalActSection: 'Section 36(1), Legal Metrology Act, 2009',
-      statutoryPenaltyNotice: 'Mandatory disclosure breach. Compounding penalty or fine up to ₹25,000 under Section 36.'
-    });
+    if (isMfgDomestic) {
+      checks.push({
+        id: 'rule-6-1-aa',
+        ruleCitation: 'Rule 6(1)(aa), LM(PC) Rules, 2011',
+        ruleTitle: '2. Country of Origin Declaration',
+        description: 'Mandatory declaration of country of manufacture/origin.',
+        status: 'COMPLIANT',
+        finding: `Origin confirmed as India (Domestic Indian Manufacturer address: "${d.manufacturer_or_packer.full_address || d.manufacturer_or_packer.entity_name}").`,
+      });
+    } else {
+      checks.push({
+        id: 'rule-6-1-aa',
+        ruleCitation: 'Rule 6(1)(aa), LM(PC) Rules, 2011',
+        ruleTitle: '2. Country of Origin Declaration',
+        description: 'Mandatory declaration stating "Country of Origin: [Country]", "Made in [Country]", or "Manufactured in [Country]".',
+        status: 'VIOLATION',
+        finding: 'Country of origin is missing or ambiguous on the package/listing.',
+        legalActSection: 'Section 36(1), Legal Metrology Act, 2009',
+        statutoryPenaltyNotice: 'Mandatory disclosure breach. Compounding penalty or fine up to ₹25,000 under Section 36.'
+      });
+    }
   } else {
     const rawOrigin = (d.country_of_origin.raw_text || '').toLowerCase();
     const isAmbiguous = rawOrigin.includes('designed in') && !rawOrigin.includes('made in') && !rawOrigin.includes('origin');
@@ -337,12 +372,13 @@ export function evaluateLegalMetrologyCompliance(
     const rawUnit = (d.net_quantity.declared_unit || '').trim();
     const rawText = (d.net_quantity.raw_text || '').toLowerCase();
     
-    // Check for forbidden abbreviations (e.g., "gms", "gm", "kilo", "ltrs", "nos", "pcs")
-    const hasForbiddenUnit = FORBIDDEN_UNIT_SYMBOLS.some(u => 
-      rawUnit.toLowerCase() === u || new RegExp(`\\b${u}\\b`, 'i').test(rawText)
-    );
+    // Check for explicit forbidden abbreviations
+    const isDeclaredForbidden = FORBIDDEN_UNIT_SYMBOLS.includes(rawUnit.toLowerCase());
+    const hasForbiddenText = /\b(gms|kilo|kilos|ltrs|nos|pcs)\b/i.test(rawText) ||
+                             /\b\d+\s*(gm|gms|ltrs|nos|pcs)\b/i.test(rawText);
 
-    const isSI = !hasForbiddenUnit && (d.net_quantity.is_standard_si_unit || VALID_SI_UNITS.includes(rawUnit));
+    const hasForbiddenUnit = isDeclaredForbidden || hasForbiddenText;
+    const isSI = !hasForbiddenUnit && (VALID_SI_UNITS.includes(rawUnit) || d.net_quantity.is_standard_si_unit);
 
     if (!isSI || hasForbiddenUnit) {
       checks.push({

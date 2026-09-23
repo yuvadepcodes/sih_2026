@@ -34,18 +34,20 @@ Your task is to thoroughly analyze the attached packaging image(s)/label(s), ext
 
 2. COUNTRY OF ORIGIN (Rule 6(1)(aa)):
    - Mandate: Mandatory for all pre-packaged commodities and marketplace listings.
-   - Standard Syntax: Must state "Country of Origin: [Country]", "Made in [Country]", or "Manufactured in [Country]".
-   - Violation Trigger: Ambiguous declarations (e.g., "Designed in USA" without explicit origin country) or complete omission.
+   - Standard Syntax: Explicit "Country of Origin: [Country]", "Made in [Country]", OR domestic Indian origin clearly evident from an Indian manufacturer/packer address located in India.
+   - For domestic products manufactured in India (e.g. by Britannia, Parle, ITC, Amul, Nestle India, etc. with Indian addresses/states), set found: true, country_name: "India", and extract the relevant text/address.
+   - Violation Trigger: Ambiguous declarations (e.g., "Designed in USA" without explicit origin country) or imported goods omitting the country of origin.
 
 3. COMMON OR GENERIC PRODUCT NAME (Rule 6(1)(b)):
    - Mandate: Clear generic or common name of the commodity must be visible; brand names alone are non-compliant.
 
 4. NET QUANTITY & STANDARD SI UNITS (Rule 6(1)(c) & Rule 12):
    - Mandate: Net quantity must be declared using ONLY standard SI metric symbols:
-     • Mass: "g" or "kg"
+     • Mass: "g", "kg", or "mg" (Note: "g" is standard, valid SI unit!)
      • Volume: "ml" or "L" / "l"
-     • Area/Length: "cm", "m", "cm²", "m²"
+     • Area/Length: "cm", "m", "mm", "cm²", "m²"
      • Number/Count: "N" or "U"
+   - When the packaging states "g" (e.g., "50 g" or "50g"), set is_standard_si_unit: true and declared_unit: "g".
    - Violation Trigger: Non-standard unit abbreviations like "gms", "gm", "kilo", "ltrs", "nos", or "pcs".
 
 5. MAXIMUM RETAIL PRICE (MRP) & TAX CLAUSE (Rule 6(1)(e) & Rule 2(m)):

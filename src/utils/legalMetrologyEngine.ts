@@ -141,19 +141,20 @@ export function getSearchableDeclarations(report: LegalMetrologyAuditReport): Se
   });
 
   // 4. Net Quantity
-  const rawUnit = (d.net_quantity.declared_unit || '').trim();
-  const isDeclaredSI = VALID_SI_UNITS.includes(rawUnit) || 
-                       VALID_SI_UNITS.includes(rawUnit.toLowerCase()) || 
-                       (d.net_quantity.is_standard_si_unit && !FORBIDDEN_UNIT_SYMBOLS.includes(rawUnit.toLowerCase()));
+  const unitEvaluation = normalizeDeclaredUnit(
+    d.net_quantity.declared_unit,
+    d.net_quantity.raw_text,
+    d.net_quantity.is_standard_si_unit
+  );
 
   items.push({
     id: 'net_qty',
     title: 'Net Quantity & SI Metric Units',
     label: 'Standard SI Metric Net Content',
-    value: `${d.net_quantity.numeric_value || ''} ${d.net_quantity.declared_unit || ''}`.trim() || 'Not declared',
+    value: `${d.net_quantity.numeric_value || ''} ${unitEvaluation.normalizedUnit}`.trim() || 'Not declared',
     rawText: d.net_quantity.raw_text,
     ruleCitation: 'Rule 6(1)(c) & Rule 12',
-    status: d.net_quantity.found && isDeclaredSI ? 'COMPLIANT' : 'VIOLATION',
+    status: d.net_quantity.found && unitEvaluation.isSI ? 'COMPLIANT' : 'VIOLATION',
     category: 'Net Quantity',
   });
 
@@ -209,7 +210,95 @@ export function getSearchableDeclarations(report: LegalMetrologyAuditReport): Se
 }
 
 export const VALID_SI_UNITS = ['g', 'kg', 'mg', 'ml', 'L', 'l', 'cm', 'm', 'mm', 'cm²', 'm²', 'N', 'U'];
-export const FORBIDDEN_UNIT_SYMBOLS = ['gms', 'gm', 'kilo', 'kilos', 'ltrs', 'ltr', 'nos', 'pcs'];
+export const FORBIDDEN_UNIT_SYMBOLS = ['gms', 'kilo', 'kilos', 'ltrs', 'ltr', 'nos', 'pcs'];
+
+// Helper to normalize and strictly evaluate declared unit of measurement
+export function normalizeDeclaredUnit(
+  unitStr: string | null | undefined,
+  rawText: string | null | undefined,
+  isSiReportedByModel?: boolean
+): {
+  normalizedUnit: string;
+  isSI: boolean;
+  isExplicitlyForbidden: boolean;
+  findingMessage?: string;
+} {
+  const clean = (unitStr || '').trim().replace(/\.$/, '');
+  const lower = clean.toLowerCase();
+
+  // Explicitly forbidden non-standard abbreviations under Rule 12(1) & Third Schedule
+  const forbidden = ['gms', 'kilo', 'kilos', 'ltrs', 'ltr', 'nos', 'pcs'];
+  if (forbidden.includes(lower)) {
+    return {
+      normalizedUnit: clean,
+      isSI: false,
+      isExplicitlyForbidden: true,
+      findingMessage: `Non-standard abbreviation "${clean}" detected. Under Rule 12 & Third Schedule, symbols like "${clean}" are strictly prohibited. The approved SI symbol is "g" / "kg" / "L".`,
+    };
+  }
+
+  // Valid standard SI unit mapping
+  const validMap: Record<string, string> = {
+    'g': 'g',
+    'kg': 'kg',
+    'mg': 'mg',
+    'ml': 'ml',
+    'l': 'L',
+    'cm': 'cm',
+    'm': 'm',
+    'mm': 'mm',
+    'cm²': 'cm²',
+    'm²': 'm²',
+    'n': 'N',
+    'u': 'U',
+    'gram': 'g',
+    'grams': 'g',
+    'kilogram': 'kg',
+    'milligram': 'mg',
+    'millilitre': 'ml',
+    'milliliter': 'ml',
+    'litre': 'L',
+    'liter': 'L',
+  };
+
+  if (validMap[lower]) {
+    return {
+      normalizedUnit: validMap[lower],
+      isSI: true,
+      isExplicitlyForbidden: false,
+    };
+  }
+
+  // If model flagged it as standard SI and it is not forbidden, treat as SI
+  if (isSiReportedByModel && !forbidden.includes(lower)) {
+    return {
+      normalizedUnit: clean || 'g',
+      isSI: true,
+      isExplicitlyForbidden: false,
+    };
+  }
+
+  // If raw text has valid SI declarations like "50 g", "60 g", "10g"
+  if (rawText) {
+    const rawLower = rawText.toLowerCase();
+    if (/\b\d+\s*g\b/i.test(rawLower) || /\b\d+g\b/i.test(rawLower)) {
+      return { normalizedUnit: 'g', isSI: true, isExplicitlyForbidden: false };
+    }
+    if (/\b\d+\s*kg\b/i.test(rawLower) || /\b\d+kg\b/i.test(rawLower)) {
+      return { normalizedUnit: 'kg', isSI: true, isExplicitlyForbidden: false };
+    }
+    if (/\b\d+\s*ml\b/i.test(rawLower) || /\b\d+ml\b/i.test(rawLower)) {
+      return { normalizedUnit: 'ml', isSI: true, isExplicitlyForbidden: false };
+    }
+  }
+
+  const isSI = VALID_SI_UNITS.includes(clean);
+  return {
+    normalizedUnit: clean || 'g',
+    isSI: isSI,
+    isExplicitlyForbidden: false,
+  };
+}
 
 // Helper to check if text contains Indian geography markers
 function isIndianOriginAddress(text: string): boolean {
@@ -374,20 +463,20 @@ export function evaluateLegalMetrologyCompliance(
       statutoryPenaltyNotice: 'Strict liability offence. Fine up to ₹25,000 for omission of net quantity.'
     });
   } else {
-    const rawUnit = (d.net_quantity.declared_unit || '').trim();
-    const isDeclaredExplicitlyForbidden = FORBIDDEN_UNIT_SYMBOLS.includes(rawUnit.toLowerCase());
-    const isRecognizedSI = VALID_SI_UNITS.includes(rawUnit) || 
-                           VALID_SI_UNITS.includes(rawUnit.toLowerCase()) || 
-                           (d.net_quantity.is_standard_si_unit && !isDeclaredExplicitlyForbidden);
+    const unitEvaluation = normalizeDeclaredUnit(
+      d.net_quantity.declared_unit,
+      d.net_quantity.raw_text,
+      d.net_quantity.is_standard_si_unit
+    );
 
-    if (isDeclaredExplicitlyForbidden || !isRecognizedSI) {
+    if (unitEvaluation.isExplicitlyForbidden || !unitEvaluation.isSI) {
       checks.push({
         id: 'rule-6-1-c-si',
         ruleCitation: 'Rule 6(1)(c) & Rule 12, LM(PC) Rules, 2011',
         ruleTitle: '4. Standard SI Units Strict Compliance',
-        description: 'Net quantity symbols must strictly be "g", "kg", "ml", "L", "l", "cm", "m", "N", or "U". Non-standard symbols ("gms", "gm", "kilo", "ltrs", "nos", "pcs") are strictly prohibited statutory violations.',
+        description: 'Net quantity symbols must strictly be "g", "kg", "ml", "L", "l", "cm", "m", "N", or "U". Non-standard symbols ("gms", "kilo", "ltrs", "nos", "pcs") are strictly prohibited statutory violations.',
         status: 'VIOLATION',
-        finding: `Non-standard unit abbreviation detected: "${rawUnit || d.net_quantity.raw_text}". The law strictly forbids symbols like "gms", "gm", "kilo", or "ltrs".`,
+        finding: unitEvaluation.findingMessage || `Non-standard unit abbreviation detected: "${d.net_quantity.declared_unit || d.net_quantity.raw_text}". Under Rule 12 & Third Schedule, symbols like "gms", "kilo", or "ltrs" are strictly prohibited.`,
         legalActSection: 'Section 36(1) in conjunction with Rule 6(1)(c) & Rule 12',
         statutoryPenaltyNotice: 'Strict liability non-compliance. Compounding penalty or fine up to ₹25,000.'
       });
@@ -398,7 +487,7 @@ export function evaluateLegalMetrologyCompliance(
         ruleTitle: '4. Net Quantity & Standard SI Units',
         description: 'Standard unit of weight/measure.',
         status: 'COMPLIANT',
-        finding: `Compliant net quantity: ${d.net_quantity.numeric_value ?? ''} ${rawUnit || 'g'} (Raw: "${d.net_quantity.raw_text}"). Uses approved SI metric symbol.`,
+        finding: `Compliant net quantity: ${d.net_quantity.numeric_value ?? ''} ${unitEvaluation.normalizedUnit} (Raw: "${d.net_quantity.raw_text}"). Uses approved SI metric symbol under Rule 12(1).`,
       });
     }
   }
